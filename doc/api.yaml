@@ -1,273 +1,2677 @@
-openapi: 3.0.0
-servers:
-  - url: "http://localhost:3000"
+openapi: 3.0.4
 info:
-  title: Fantastic Coffee (decaffeinated)
-  description: Fantastic Coffee (decaffeinated), the skeleton project for Web and Software architecture course
+  title: FlowChat
+  description:  API Web Chat App, University project
   version: 1.0.0
+  
+servers:
+  - url: https://api.web-chat-app.com/v1
+    description: Web Chat Application API Description
+
+tags:
+  - name: Users
+    description: User management, search, and blocking
+  - name: Conversations
+    description: General conversation operations
+  - name: Single Conversations
+    description: One-to-one conversation management
+  - name: Group Conversations
+    description: Group conversation management and administration
+  - name: Messages
+    description: Message operations (send, edit, delete, reply, forward)
+  - name: Reactions
+    description: Message reaction operations
+  - name: Media
+    description: Media file upload and management
+  - name: Notifications
+    description: User notification management
+  - name: Search
+    description: Search functionality across messages and conversations
+
+components:
+  schemas:  
+    
+    User:
+      type: object
+      description: Representation of a User in the system.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique user id (UUID)
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+          example: steph_curry
+          pattern: '^[A-Za-z0-9_]+$'
+          description: Unique username; only letters, numbers and underscore
+        status:
+          type: string 
+          maxLength: 200
+          description: User Status
+          #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji                  
+          example: "Available, write to me! :)"
+        profilePhoto:
+          type: string
+          format: url                               # Url dell'immagine
+          description: URL User profile photo
+        dtRegistration:                            # Creato quando lo creo come nuovo utente 
+          type: string
+          format: date-time
+          description: Account creation Date-Time (UTC)
+        lastTimeOnline:
+          type: string
+          format: date-time
+          description:  User Last Access on the App (UTC)
+      required:
+        - id 
+        - username
+        - profilePhoto
+        - status
+        - lastTimeOnline
+
+
+    newUser:
+      type: object
+      description: Representation of a New User in the system.
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+          example: steph_curry
+          pattern: '^[A-Za-z0-9_]+$'
+          description: Unique username; only letters, numbers and underscore
+        status:
+          type: string 
+          maxLength: 200
+          description: User Status
+          #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji                  
+          example: "Available, write to me! :)"
+        profilePhoto:
+          type: string
+          format: url                               # Url dell'immagine
+          description: URL User profile photo
+        dtRegistration:                            # Creato quando lo creo come nuovo utente 
+          type: string
+          format: date-time
+          description: Account creation Date-Time (UTC)
+        lastTimeOnline:
+          type: string
+          format: date-time
+          description:  User Last Access on the App (UTC)
+      required:
+        - username
+        - profilePhoto
+        - status
+        - lastTimeOnline
+
+
+
+
+    GroupConversation:
+      type: object
+      description: Representation of a Group Conversation
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique id Conversation
+        groupName:
+          type: string
+          minLength: 1
+          maxLength: 200
+          #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji  
+          example: BestShooters
+          description: Group name
+        groupDescription:
+          type: string
+          #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji  
+          minLength: 0
+          maxLength: 1000
+          description: Group description
+          example: "This group is only for people who don't shoot bricks :)"
+        groupPhoto:
+          type: string
+          format: url
+          description: Group photo
+        members:
+          description: List of users participating in the group
+          type: array
+          items:
+            $ref: "#/components/schemas/User"     
+          minItems: 1
+          maxItems: 300  
+        admins:
+          description: List of admin users in the group
+          type: array
+          items:
+            type: string
+            format: uuid
+            description: User IDs of group admins
+          minItems: 1
+          maxItems: 100
+        dtCreated:
+          type: string
+          format: date-time
+          description: date and time when the group was created
+        snippet:              # anteprima
+          type: string
+          maxLength: 300
+          description: Conversation snippet
+          #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji            
+          example: "Yeah, I want to talk about..."
+        dtLastMessage:
+          type: string
+          format: date-time
+          description: date and time of the last message in a Group Conversation
+      required: 
+        - groupName
+        - members
+        - dtCreated
+
+
+    NewGroupConversation:
+      type: object
+      description: Representation of a NEW Group Conversation
+      properties:
+        groupName:
+          type: string
+          minLength: 1
+          maxLength: 200
+          #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji  
+          description: Group name
+        groupDescription:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji  
+          description: Group description
+        members:
+          type: array
+          items:
+            type: string
+            description: Username of member to add
+            minLength: 3
+            maxLength: 30
+          minItems: 1                                   # almeno un utente deve essere unito al gruppo (quando creato)
+          maxItems: 300
+          description: Group members
+      required: 
+        - groupName
+        - members
+        
+
+    SingleConversation:
+      type: object
+      description: Representation of a Single Conversation
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique Single Conversation Id
+        recipientUser:
+          $ref: "#/components/schemas/User"
+        snippet:              # anteprima
+          type: string
+          maxLength: 300
+          #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji  
+          example: "Yeah, I want to talk about..."
+          description: Single Conversation snippet
+        dtLastMessage:
+          type: string
+          format: date-time
+          description: date and time of the last message in a Sigle Conversation
+        userPhoto:
+          type: string
+          format: url
+          description: User Photo
+      required: 
+        - id 
+        - recipientUser
+
+
+    NewSingleConversation:
+      type: object
+      description:  Representation of a NEW Single Conversation
+      properties:
+        recipientUserUsername:
+          type: string
+          minLength: 3
+          maxLength: 30
+          description: recipient username
+        initialMessage:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          description: First message to send in the conversation
+      required: 
+        - recipientUserUsername
+        - initialMessage
+
+
+    Message:
+      type: object
+      description: Representation of a Message in the system
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique Message Id
+        contentMess:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          #pattern:            Validare/Sanificare lato server (testo + emoji + foto(o gif) anche Allegati (e tutte le permutazioni )
+          description: Message content. May include text, emojis, links, and attachments.
+        timestamp:
+          type: string
+          format: date-time
+          description: Message timestamp
+        statusInfo:
+          type: string
+          enum:
+            - sent
+            - delivered
+            - read
+          description: Message status
+        conversationId:
+          type: string
+          format: uuid
+          description: Unique Conversation Id
+        senderUserId:
+          type: string
+          format: uuid
+          description: User ID who sent the message
+        senderUsername:
+          type: string
+          description: User who sent the message
+        # deleted:
+        #   type: boolean
+        #   default: false
+        #   description: Indicates whether a message has been deleted
+        replyToMessageId:                 # id del messaggio a cui questo messaggio risponde (risposta intesa come feature specifica)
+          type: string
+          format: uuid
+          description: ID of the message this is replying to (if any)
+        forwarded:                        # Indica se il messaggio è stato inoltrato da qualche altra chat --> Boolean 
+          type: boolean
+          default: false
+          description: Indicates if message was forwarded
+        reactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Reaction"
+          minItems: 0
+          maxItems: 300                   # proprio come il numero massimo di utenti presenti in un gruppo
+          description: Message Reactions
+
+      required: 
+        - id
+        - contentMess
+        - timestamp
+        - conversationId
+        - senderUserId
+        - senderUsername
+
+
+    NewMessage:
+      type: object
+      description: Representation of a New Message in the system
+      properties:
+        contentMess:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          #pattern:            Validare/Sanificare lato server (testo + emoji + foto(o gif) anche Allegati (e tutte le permutazioni )
+          description: Message content. May include text, emojis, links, and attachments.
+        timestamp:
+          type: string
+          format: date-time
+          description: Message timestamp
+        statusInfo:
+          type: string
+          enum:
+            - sent
+            - delivered
+            - read
+          description: Message status
+        conversationId:                     # E' già nel path
+          type: string
+          format: uuid
+          description: Unique Conversation Id
+        senderUserId:
+          type: string
+          format: uuid
+          description: User ID who sent the message
+        senderUsername:
+          type: string
+          description: User who sent the message
+        replyToMessageId:                 # id del messaggio a cui questo messaggio risponde (risposta intesa come feature specifica)
+          type: string
+          format: uuid
+          description: ID of the message this is replying to (if any)
+
+      required: 
+        - contentMess
+        - timestamp
+        - conversationId
+        - senderUserId
+        - senderUsername
+
+
+    MessageUpdate:
+      type: object
+      description: Representation of a Message Update in the system
+      properties:
+        contentMess:                    # nuovo contenuto del messaggio
+          type: string
+          minLength: 1
+          maxLength: 5000
+          description: Content of new message (edited)
+        # conversationId:                # E' gia nel Path dell'endpoint
+        #   type: string
+        #   format: uuid
+        timestamp:
+          type: string
+          format: date-time
+          description: New timestamp when the messagge was modified
+      required: 
+        - contentMess
+
+    
+    ReplyMessage:                       # Rispondere a un messaggio
+      type: object
+      description: Representation of a Reply to a Message 
+      properties:
+        contentMess:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          description: Content of the reply message
+        # conversationId:                # E' gia nel Path dell'endpoint
+        #   type: string
+        #   format: uuid
+        #   description: Conversation Id in which the reply to the message is located
+        replyToMessageId:
+          type: string
+          format: uuid
+          description: Message ID of the message being replied to
+      required: 
+        - contentMess
+        - replyToMessageId
+
+     
+    ForwardMessage:                   # Inoltra un messaggio
+      type: object
+      description: Representation of a forwarded message
+      properties:
+        messToForwardId:
+          type: string
+          format: uuid
+          description: ID of message to forward
+        conversationToForwardId:
+          type: string
+          format: uuid
+          description: Conversation to forward the message
+      required: 
+        - messToForwardId
+        - conversationToForwardId
+
+
+    Reaction:
+      type: object
+      description: Representation of a reaction to a message
+      properties:
+        reactionId: 
+          type: string
+          format: uuid
+          description: Reaction ID
+        emoji:
+          type: string
+          #pattern:                            # Gestire questo pattern nel backend
+          description: Emoji reaction
+        timestamp:
+          type: string
+          format: date-time
+          description: Reaction timestamp
+        messToReactId:         
+          type: string
+          format: uuid
+          description: The Messagge where will react           
+        senderUserId:
+          type: string
+          format: uuid
+          description: User who reacted
+        senderUsername:
+          type: string
+          description: User username who reacted
+      required: 
+        - reactionId
+        - emoji
+        - timestamp
+        - messToReactId
+        - senderUserId
+        - senderUsername
+
+
+    NewReaction:
+      type: object
+      description: Representation of a New reaction to a message
+      properties:
+        emoji:
+          type: string
+          #pattern:                            # Gestire questo pattern nel backend
+          description: Emoji reaction
+        timestamp:
+          type: string
+          format: date-time
+          description: Reaction timestamp
+        messToReactId:         
+          type: string
+          format: uuid
+          description: The Messagge where will react           
+        senderUserId:
+          type: string
+          format: uuid
+          description: User who reacted
+        senderUsername:
+          type: string
+          description: User username who reacted
+      required: 
+        - emoji
+        - timestamp
+        - messToReactId
+        - senderUserId
+        - senderUsername
+
+
+    AddMembersRequest:
+      type: object
+      description: Representation requested adding a member to a group
+      properties:
+        usersIdToAdd:
+          type: array
+          items:          ## singolo username da aggiungere
+            type: string 
+            format: uuid           
+          minItems: 1
+          #maxItems:                                                          # da gestire in backend, perchè sarebbe (300 - numPartecipantiAttuale)
+          description: Array of usernames to add to the group
+      required: 
+        - usersIdToAdd
+
+
+
+    Notification:
+      type: object
+      description: Representation of a message notification
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Notification ID
+        notificationType:
+          type: string
+          enum:
+            - new_message
+            - message_reply
+            - message_mention
+            - group_invite
+            - group_member_added
+            - group_member_removed
+            - group_admin_promoted
+            - group_admin_demoted
+            - reaction_added
+          description: Type of notification
+        title:
+          type: string
+          description: Notification title
+        body:
+          type: string
+          description: Notification body text
+        relatedUserId:
+          type: string
+          format: uuid
+          description: ID of user who triggered the notification
+        relatedConversationId:
+          type: string
+          format: uuid
+          description: ID of related conversation
+        relatedMessageId:
+          type: string
+          format: uuid
+          description: ID of related message (if applicable)
+        timestamp:
+          type: string
+          format: date-time
+          description: Notification timestamp
+        read:
+          type: boolean
+          default: false
+          description: Indicates whether the notification has been read or not
+        data:
+          type: object
+          description: Additional notification-specific data
+      required: 
+        - id
+        - notificationType
+        - title
+        - timestamp
+        - read
+
+
+    AdminRequest:
+      type: object
+      description: Representation of the request to make a member an administrator of the group
+      properties:
+        usernameId:
+          type: string
+          format: uuid
+          description: Username ID of the user to make/remove as admin
+      required:
+        - usernameId
+
+
+    UpdateUsernameRequest:
+      type: object
+      description: Requested representation to change your username
+      properties:
+        newUsername:
+          type: string
+          minLength: 3
+          maxLength: 30
+          description: New username (must be unique)
+      required: 
+        - newUsername
+
+
+    ConversationStats:
+      type: object
+      description: Representation of conversation statistics
+      properties:
+        totalMessages:
+          type: integer
+          description: Total number of messages in the conversation
+        totalMembers:
+          type: integer
+          description: Number of members (for groups)
+        mediaCount:
+          type: object
+          description: Media Count 
+          properties:
+            images:
+              type: integer
+              description: Images
+            videos:
+              type: integer
+              description: Video
+            documents:
+              type: integer
+              description: Documents
+
+    Error:
+      type: object
+      description: Textual representation of the error
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        details:
+          type: string
+          description: Additional error details
+      required: 
+        - error
+  
+## ENDPOINTS
+
 paths:
-  /status:
-    parameters:
-      - $ref: "#/components/parameters/XAppBuild"
-      - $ref: "#/components/parameters/XAppVersion"
-      - $ref: "#/components/parameters/XAppLanguage"
-      - $ref: "#/components/parameters/XAppPlatform"
-    get:
-      tags: ["General"]
-      operationId: getStatusMessage
-      summary: Get status message for the user about issues / updates
+
+  /session:
+    post:
+      operationId: doLogin
+      tags: ["login"]
+      summary: Logs in the user
       description: |-
-        The response contains a status message meant for the user. It might
-        contains information about current technical issues, update messages
-        or general information.
+        If the user does not exist, it will be created,
+        and an identifier is returned.
+        If the user exists, the user identifier is returned.
+      requestBody:
+        required: true
+        description: User details
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Schema representing the user credentials required to perform login or account creation.
+              properties:
+                name:
+                  type: string
+                  example: Steph
+                  minLength: 3
+                  maxLength: 16
+                  description: Login Name
       responses:
-        "200":
-          description: Status message available
+        '201':
+          description: User log-in action successful
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/StatusInfo"
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "500": { $ref: "#/components/responses/InternalServerError" }
-
-  /:
-    get:
-      tags: ["Group 1"]
-      operationId: index
-      summary: Get an index
-      description: |-
-        This is an example of an index API description
-      responses:
-        "200":
-          description: Successful
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "500": { $ref: "#/components/responses/InternalServerError" }
-  /context:
-    parameters:
-      - $ref: "#/components/parameters/XAppBuild"
-      - $ref: "#/components/parameters/XAppVersion"
-      - $ref: "#/components/parameters/XAppLanguage"
-      - $ref: "#/components/parameters/XAppPlatform"
+                type: object
+                description: Response containing the unique identifier of the logged-in or newly created user.
+                properties:
+                  identifier:
+                    type: string
+                    description: User Identifier (ID)
+              example:
+                identifier: "c12f8a3b-45d2-4baf-b27a-89dc4f3b5f9c"
+  
+  /register:                                                                                  # Registrare un nuovo utente
     post:
-      tags: ["Group 1"]
-      operationId: getContext
-      summary: Another API example
+      operationId: registerUser
+      tags: ["Users"]
+      summary: Register a new user
       description: |-
-        Example description 2
-      responses:
-        "200":
-          description: Request ok
-          headers:
-            X-Access-Token:
-              description: Access token for authenticated requests
-              schema: { type: string }
-        "500": { $ref: "#/components/responses/InternalServerError" }
-  /authenticated:
-    parameters:
-      - $ref: "#/components/parameters/XAppBuild"
-      - $ref: "#/components/parameters/XAppVersion"
-      - $ref: "#/components/parameters/XAppLanguage"
-      - $ref: "#/components/parameters/XAppPlatform"
-    get:
-      tags: ["Group 2"]
-      operationId: getAuthenticatedExample
-      summary: Get an endpoint with authentication
-      description: |-
-        Get an endpoint with auth
-      security:
-        - LegacyAuth: []
-        - AppToken: []
-      responses:
-        "200":
-          description: Logout successful
-        "500": { $ref: "#/components/responses/InternalServerError" }
-
-  /pictures/{cat}:
-    parameters:
-      - $ref: "#/components/parameters/XAppBuild"
-      - $ref: "#/components/parameters/XAppVersion"
-      - $ref: "#/components/parameters/XAppLanguage"
-      - $ref: "#/components/parameters/XAppPlatform"
-      - $ref: "#/components/parameters/cat"
-    get:
-      tags: ["Cat pictures"]
-      operationId: getCatFromPicture
-      summary: Example of a parameter in URL
-      description: |-
-        Example of a parameter in URL
-      security:
-        - LegacyAuth: []
-      responses:
-        "200":
-          description: Student picture found
-          content:
-            image/png:
-              schema:
-                type: string
-                format: binary
-              example: Picture binary file
-        "404":
-          description: Student picture not found
-        "500": { $ref: "#/components/responses/InternalServerError" }
-
-
-  /autofeeder/{cat}:
-    parameters:
-      - $ref: "#/components/parameters/XAppBuild"
-      - $ref: "#/components/parameters/XAppVersion"
-      - $ref: "#/components/parameters/XAppLanguage"
-      - $ref: "#/components/parameters/XAppPlatform"
-      - $ref: "#/components/parameters/cat"
-    put:
-      tags: ["Autofeeder"]
-      operationId: createCatAutofeeder
-      summary: Example of PUT operation
-      security:
-        - LegacyAuth: []
-      responses:
-        "200":
-          description: Auto feed enabled
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "500": { $ref: "#/components/responses/InternalServerError" }
-    delete:
-      tags: ["Autofeeder"]
-      operationId: deleteCatAutofeeder
-      summary: Example of DELETE operation
-      security:
-        - LegacyAuth: []
-      responses:
-        "200":
-          description: Auto feed disabled
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "500": { $ref: "#/components/responses/InternalServerError" }
-
-  /session/login:
-    parameters:
-      - $ref: "#/components/parameters/XAppBuild"
-      - $ref: "#/components/parameters/XAppVersion"
-      - $ref: "#/components/parameters/XAppLanguage"
-      - $ref: "#/components/parameters/XAppPlatform"
-    post:
-      tags: ["Session management"]
-      operationId: login
-      summary: Log-in into system
-      description: |-
-        Perform a log-in action using username and password credentials.
-        Returns a token which can be used in authenticated requests.
+        Creates a new user account with the provided credentials.
+        Returns the user identifier and profile information upon successful registration.
+        Username must be unique across the platform.
       requestBody:
+        required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
+            schema:
+              type: object
+              description: User registration details
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 30
+                  pattern: '^[A-Za-z0-9_]+$'
+                  example: steph_curry
+                  description: Unique username (letters, numbers, underscore only)
+                status:
+                  type: string
+                  maxLength: 200
+                  example: "New to FlowChat!"
+                  description: Initial user status message
+                profilePhoto:
+                  type: string
+                  format: url
+                  description: URL to profile photo (optional, default avatar if not provided)
+              required:
+                - username
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  identifier:
+                    type: string
+                    format: uuid
+                    description: Unique user identifier
+                  user:
+                    $ref: "#/components/schemas/User"
+              example:
+                identifier: "f2a1b7d4-9c5e-4b2e-a6d3-8e1a9c7d5b22"
+                user:
+                  id: "f2a1b7d4-9c5e-4b2e-a6d3-8e1a9c7d5b22"
+                  username: "steph_curry"
+                  status: "New to FlowChat!"
+                  profilePhoto: "https://web-chat-app.com/users/profile-images/default.png"
+                  dtRegistration: "2025-11-09T10:30:00Z"
+                  lastTimeOnline: "2025-11-09T10:30:00Z"
+        '400':
+          description: Invalid input or username already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Username already exists"
+                code: "USERNAME_TAKEN"
+                details: "The username 'steph_curry' is already registered"
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+  /users/search:                                          # Ricercare un utente tra tutti gli utenti registrati nella web app
+    get:
+      operationId: searchUser
+      summary: Search for a user by username
+      description: |-
+        Retrieves a user's profile information. 
+        If the user exists, their public details are returned; otherwise, 
+        an error response is provided.
+      tags:
+        - Users
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 30
+          description: Username to search for
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+              example:
+                id: "550e8400-e29b-41d4-a716-446655440000"
+                username: "steph_curry"
+                status: "Available, write to me! :)"
+                profilePhoto: "https://web-chat-app.com/users/profile-images/steph_curry.png"
+                dtRegistration: "2024-11-02T14:25:30Z"
+                lastTimeOnline: "2025-11-05T09:48:10Z"
+        '404':
+          description: User Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /users/me/username:
+    put:                                               # Modifico il mio username
+      operationId: setMyUserName
+      summary: Update current user's username
+      description: |-
+        Updates the username of the currently authenticated user.  
+        The request must include the new desired username in the request body.  
+        If the username is valid and not already taken, it is updated successfully  
+        and the updated user profile is returned.  
+        If the username already exists, an error response is returned.
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUsernameRequest"
+
+      responses:
+        '200':
+          description: Username updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+              example:
+                id: "550e8400-e29b-41d4-a716-446655440000"
+                username: "Ryan_Ted"
+                status: "Focused on this project :)"
+                profilePhoto: "https://web-chat-app.com/users/profile-images/ryan_ted.png"
+                dtRegistration: "2024-11-02T14:25:30Z"
+                lastTimeOnline: "2025-11-05T10:12:45Z"
+
+        '400':
+          description: Username already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+  /conversations:                         # prendo tutte le conversazioni dell'utente loggato in corso --> Lista delle conversazioni (pannelllo a sinistra)
+    get:
+      operationId: getMyConversations
+      summary: Get all conversations for the authenticated user
+      description: |-
+        Returns all conversations (single and group) ordered by last message 
+        timestamp (most recent first)
+      tags:
+        - Conversations
+      responses:
+        '200':
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Conversations
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      oneOf:
+                        - $ref: "#/components/schemas/SingleConversation"
+                        - $ref: "#/components/schemas/GroupConversation"  
+                    minItems: 0
+                    maxItems: 5000          # al massimo 5000 conversazioni può avere l'utente loggato in sessione
+                    description: All the conversations of the user in session
+
+              example:
+                conversations:
+                  - id: "7e2f13e0-8d9f-4df8-b1a1-4a56e6b943b2"
+                    recipientUser:
+                      id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
+                      username: "martina_02"
+                      profilePhoto: "https://web-chat-app.com/profile-images/martina.jpg"
+                      status: "online"
+                    snippet: "Hey, how’s everything going?"
+                    dtLastMessage: "2025-11-06T13:45:12Z"
+                    userPhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
+
+                  - id: "2f38b82e-8749-4659-bc1a-8e46f2769bb7"
+                    groupName: "BestShooters"
+                    groupDescription: "This group is only for people who don't shoot bricks :)"
+                    groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
+                    snippet: "Let’s play at 8 PM tonight!"
+                    dtLastMessage: "2025-11-06T12:30:05Z"
+                    members:
+                      - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
+                        username: "martina_02"
+                        profilePhoto: "https://cdn.web-chat-app.com/users/martina.jpg"
+                        status: "online"
+                      - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
+                        username: "fil_dev"
+                        profilePhoto: "https://cdn.web-chat-app.com/users/filippo.jpg"
+                        status: "offline"
+                    admins:
+                      - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
+                    dtCreated: "2025-09-01T18:00:00Z"
+
+
+  /conversations/search:                 # ricerco una conversation specifica all'interno delle mie (utente loggato in sessione) conversazioni.
+    get:
+      operationId: getConversation
+      summary: Search conversations by name
+      description: Search for conversations (single or group) by name. Group names can contain emojis, usernames cannot.
+      tags:
+        - Conversations
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1                  # lunghezza minima Gruppo = 1 ---  lunghezza minima username Utente = 3
+            maxLength: 200               # massima lunghezza conversazione (sia singolo --> nome utente quindi già Max = 30) e di gruppo --> LunghezzaNomeGruppo = 200
+            description: Conversation name or username to search for
+          description: Searching Conversation
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                description: My Conversations (Single or Group)
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      oneOf:
+                        - $ref: "#/components/schemas/SingleConversation"
+                        - $ref: "#/components/schemas/GroupConversation"
+                    minItems: 0
+                    maxItems: 5000                                 # al massimo un risultato della richiesta per una conversazione con un nome specifico (possono esistere conversazioni di Gruppo con Stesso Nome!)
+                    description: Conversations returned
+              example:
+                conversations:                                  # Array di conversazioni (Single o Group)
+                  # Caso Esempio Single Conversation
+                  - id: "a12f45b0-67c3-4b2f-9a8d-4a9824b1c0d1"
+                    recipientUser:
+                      id: "d27e91a2-4f51-4a89-9e33-1efbc6b38e92"
+                      username: "marta_22"
+                      status: "Just chilling..."
+                      profilePhoto: "https://web-chat-app.com/users/progile-images/marta_22.png"
+                      dtRegistration: "2024-04-12T09:30:00Z"
+                      lastTimeOnline: "2025-11-05T10:14:00Z"
+                    snippet: "See you later!"
+                    dtLastMessage: "2025-11-05T09:50:12Z"
+                    userPhoto: "https://web-chat-app.com/images/marta_22.png"
+        
+                  # Caso Esempio Group Conversation
+                  - id: "b78e34c1-92de-412f-83f1-8a0e2327c7a4"
+                    groupName: "WASA Programmers"
+                    groupDescription: "A group for Wasa lovers and learners"
+                    groupPhoto: "https://web-chat-app.com/groups/profile-images/.png"
+                    snippet: "New homework posted today!"
+                    dtLastMessage: "2025-11-04T22:15:45Z"
+                    members:
+                      - id: "e91b8a23-8d0f-4e2d-a4e1-7c6c34b7f345"
+                        username: "LebronJames"
+                        status: "Working on a new feature"
+                        profilePhoto: "https://web-chat-app.com/users/profile-images/lebronJames.png"
+                        dtRegistration: "2023-06-01T11:40:00Z"
+                        lastTimeOnline: "2025-11-05T10:00:00Z"
+                      - id: "f01c32a2-9e56-44f1-b8b1-0a78b2d543f1"
+                        username: "alice_code"
+                        status: "Debugging my brain :("
+                        profilePhoto: "https://web-chat-app.com/users/profile-images/alice_code.png"
+                        dtRegistration: "2024-02-20T13:00:00Z"
+                        lastTimeOnline: "2025-11-05T09:55:00Z"
+                    admins:
+                      - "e91b8a23-8d0f-4e2d-a4e1-7c6c34b7f345"
+                    dtCreated: "2024-09-10T18:00:00Z"
+        '404':
+          description: Conversation Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  #######################################              
+  # ENDPOINTS di Conversazioni Singole.
+  ########################################
+  /conversations/single:
+    post:
+      operationId: newSingleConversation
+      summary: Create a new single conversation
+      description: Creates a new single conversation with initial message. If conversation already exists, returns existing conversation.
+      tags:
+        - Single Conversations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewSingleConversation"
+      responses:
+        '201':
+          description: Conversation created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SingleConversation"
+              example:
+                id: "8d33c2d4-61f0-4a5a-a90f-7c15fd7c02d1"                                  #ID generato per questa nuova conversazione Singola
+                recipientUser:
+                  id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
+                  username: "martina_02"
+                  status: "online"
+                  profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
+                  dtRegistration: "2024-02-20T13:00:00Z"
+                  lastTimeOnline: "2025-11-05T09:55:00Z"
+                snippet: "Hey, how are you doing?"
+                dtLastMessage: "2025-11-06T14:12:30Z"
+                userPhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
+        '200':
+          description: Conversation already exists, returning existing conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SingleConversation"
+              example:
+                id: "7e2f13e0-8d9f-4df8-b1a1-4a56e6b943b2"
+                recipientUser:
+                  id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
+                  username: "martina_02"
+                  status: "online"
+                  profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
+                  dtRegistration: "2024-02-20T13:00:00Z"
+                  lastTimeOnline: "2025-11-05T09:55:00Z"
+                snippet: "See you tomorrow!"
+                dtLastMessage: "2025-11-05T19:45:12Z"
+                userPhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
+        '404':
+          description: Recipient user not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+
+  /conversations/single/{conversationId}:                   # ritorna l'id della singola "Conversazione Singola" --> nel path
+    parameters:                                             # definisco i parameters UNA SOLA VOLTA a livello di path --> non lo ripeto per ogni operazione
+    - name: conversationId
+      in: path
+      required: true
+      description: Conversation unique identifier
+      schema:
+        type: string
+        format: uuid
+        description: Unique Conversation ID
+
+    get:
+      operationId: getSingleConversationById
+      summary: Get a specific single conversation
+      description: Get a specific single conversation by id
+      tags:
+        - Single Conversations
+      responses:
+        '200':
+          description: Conversation details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SingleConversation"
+              example:
+                id: "7e2f13e0-8d9f-4df8-b1a1-4a56e6b943b2"
+                recipientUser:
+                  id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
+                  username: "martina_02"
+                  status: "online"
+                  profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
+                  dtRegistration: "2024-02-20T13:00:00Z"
+                  lastTimeOnline: "2025-11-05T09:55:00Z"
+                snippet: "Sure, let's meet at 6 PM!"
+                dtLastMessage: "2025-11-06T14:25:43Z"
+                userPhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
+        '404':
+          description: Conversation Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    delete:                                                 # elimino la mia conversazione singola (con un altro utente)
+      operationId: deleteSingleConversation
+      summary: Delete a single conversation
+      description: Deletes the conversation for the authenticated user
+      tags:
+        - Single Conversations
+      responses:
+        '204':
+          description: Conversation deleted successfully
+        '403':
+          description: User not part of this conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  ########################################
+  # ENDPOINTS di Conversazioni di Gruppo.
+  ########################################
+  /conversations/group:
+    post:                                                   # Creo un nuovo gruppo
+      operationId: createNewGroup
+      summary: Create a new group conversation
+      description: A new group conversation is created
+      tags:
+        - Group Conversations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewGroupConversation"
+      responses:
+        '201':
+          description: Group created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupConversation"
+              example:
+                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                groupName: "BestShooters"
+                groupDescription: "This group is only for people who don't shoot bricks :)"
+                groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
+                members:
+                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
+                    username: "fil_dev"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
+                    status: "online"
+                  - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
+                    username: "martina_02"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
+                    status: "online"
+                  - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
+                    username: "leo_snk"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
+                    status: "offline"
+                admins:
+                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
+                dtCreated: "2025-11-06T15:09:58Z"
+                snippet: "Welcome to BestShooters!"
+                dtLastMessage: "2025-11-06T15:10:23Z"
+        '400':  #BadRequest
+          description: Invalid input (e.g., non-existent users)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+  /conversations/group/{conversationId}:
+    get:                                                      # ottengo una conversazione di Gruppo specifica in base all'id
+      operationId: getGroupConversation
+      summary: Get a specific group conversation
+      description: Returns a specific group (group conversation)
+      tags:
+        - Group Conversations
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Conversation Group Id
+      responses:
+        '200':
+          description: Group conversation details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupConversation"
+              example:
+                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                groupName: "BestShooters"
+                groupDescription: "This group is only for people who don't shoot bricks :)"
+                groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
+                members:
+                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
+                    username: "fil_dev"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
+                    status: "online"
+                  - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
+                    username: "martina_02"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
+                    status: "online"
+                  - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
+                    username: "leo_snk"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
+                    status: "offline"
+                admins:
+                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
+                dtCreated: "2025-11-06T15:09:58Z"
+                snippet: "Welcome to BestShooters!"
+                dtLastMessage: "2025-11-06T15:10:23Z"
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+  /conversations/group/{conversationId}/members:
+    post:                                                     # Aggiungo un Membro al Gruppo
+      operationId: addToGroup
+      summary: Add members to a group
+      description: Only group admins can add new members
+      tags: 
+        - Group Conversations
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique ConversationId
+      requestBody:                                            # corpo input della richiesta
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddMembersRequest"
+      responses:
+        '200':
+          description: Members added successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupConversation"
+              example:
+                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                groupName: "BestShooters"
+                groupDescription: "This group is only for people who don't shoot bricks :)"
+                groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
+                members:
+                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
+                    username: "fil_dev"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
+                    status: "online"
+                  - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
+                    username: "martina_02"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
+                    status: "online"
+                  - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
+                    username: "leo_snk"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
+                    status: "offline"
+                  - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
+                    username: "giulia_m"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
+                    status: "online"
+                admins:
+                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
+                dtCreated: "2025-11-06T15:09:58Z"
+                snippet: "Welcome to BestShooters!"
+                dtLastMessage: "2025-11-06T15:10:23Z"
+        '403':
+          description: User is not an admin of this group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: Group or User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+  /conversations/group/{conversationId}/leave:
+    post:
+      operationId: leaveGroup
+      summary: Leave a group conversation
+      description: Remove yourself from the group. If you were an admin, admin status is also removed.
+      tags:
+        - Group Conversations
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema: 
+            type: string
+            format: uuid
+            description: Unique Conversation Id
+      responses:
+        '204':    # No Content
+          description: Successfully left the group
+        '403':    # Forbidden 
+          description: User is not a member of this group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+
+  /conversations/group/{conversationId}/admins:
+    post:                                                           # Rendere Admin un membro del gruppo
+      operationId: makeAdmin
+      summary: Make a user an admin of the group
+      description: Only existing admins can promote other members to admin
+      tags:
+        - Group Conversations
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Conversation Id
+      requestBody:
+        required: true
+        content: 
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminRequest"
+      responses:
+        '200':
+          description: User promoted to admin successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupConversation"
+              example:
+                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                groupName: "BestShooters"
+                groupDescription: "This group is only for people who don't shoot bricks :)"
+                groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
+                members:
+                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
+                    username: "fil_dev"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
+                    status: "online"
+                  - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
+                    username: "martina_02"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
+                    status: "online"
+                  - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
+                    username: "leo_snk"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
+                    status: "offline"
+                  - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
+                    username: "giulia_m"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
+                    status: "online"
+                admins:
+                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"   # Filippo (admin originario)
+                  - "c5b9289e-cc09-4c32-9b5f-12629faecb8d"   # Martina (nuova admin)
+                dtCreated: "2025-11-06T15:09:58Z"
+                snippet: "Welcome to BestShooters!"
+                dtLastMessage: "2025-11-06T15:10:23Z"
+        '400':
+          description: User is already an admin or not a member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '403':
+          description: Requesting user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+
+  /conversations/group/{conversationId}/admins/{username}:
+    delete:                                                                   # Rimuovo lo stato di Admin da un membro del gruppo
+      operationId: removeAdminStatus
+      summary: Remove admin status from a user
+      description: Only admins can remove admin status from other admins
+      tags:
+        - Group Conversations
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Conversation ID
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            description: User username
+            minLength: 3
+            maxLength: 30
+      responses:
+        '200':
+          description: Admin status removed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupConversation"
+              example:
+                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                groupName: "BestShooters"
+                groupDescription: "This group is only for people who don't shoot bricks :)"
+                groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
+                members:
+                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
+                    username: "fil_dev"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
+                    status: "online"
+                  - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
+                    username: "martina_02"
+                    photo: "https://web-chat-app.com/users/profile-images/martina.jpg"
+                    status: "online"
+                  - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
+                    username: "leo_snk"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
+                    status: "offline"
+                  - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
+                    username: "giulia_m"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
+                    status: "online"
+                admins:
+                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"   
+                dtCreated: "2025-11-06T15:09:58Z"
+                snippet: "Welcome to BestShooters!"
+                dtLastMessage: "2025-11-06T15:10:23Z"
+        '400':
+          description: User is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '403':
+          description: Requesting user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+
+  /conversations/{conversationId}/typing:
+    post:                                                               # Indicatore di "sta scrivendo"
+      operationId: isTyping
+      summary: Send typing indicator
+      description: Notify other participants that user is typing. Indicator expires after 5 seconds if not refreshed.
+      tags:
+        - Conversations
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Conversation ID
+      requestBody:
+        required: true
+        content:
+          application/json:
             schema:
               type: object
               properties:
-                userid:
-                  type: string
-                  pattern: '^[a-zA-Z0-9]+$'
-                  minLength: 3
-                  maxLength: 255
-                password:
-                  type: string
-                  pattern: '^.*?$'
-                  minLength: 8
-                  maxLength: 255
+                isTyping:
+                  type: boolean
+                  description: Indicates whether someone in the conversation is typing...
+              required: 
+                - isTyping
       responses:
-        "200":
-          description: Login successful
-          headers:
-            X-Access-Token:
-              description: Access token for authenticated requests
-              schema: { type: string }
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "403":
-          description: Login failed
-          headers:
-            X-Message:
-              description: Error message
-              schema: { type: string }
-        "500": { $ref: "#/components/responses/InternalServerError" }
+        '204':
+          description: Typing indicator sent
+        '403':
+          description: User is not part of this conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
 
-components:
-  schemas:
-    StatusInfo:
-      title: Status Info
-      type: object
-      properties:
-        status:
+
+  /conversations/group/{conversationId}/name:
+    put:                                                              # modifico nome  gruppo
+      operationId: setGroupName
+      summary: Update group name
+      description: Only group admins can update group information
+      tags:
+        - Group Conversations
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Conversation Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Group name 
+              properties:
+                groupName:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  description: Group Name
+      responses:
+        '200':
+          description: Group name updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupConversation"
+              example:
+                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                groupName: "BestShooters"
+                groupDescription: "This group is only for people who don't shoot bricks :)"
+                groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
+                members:
+                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
+                    username: "fil_dev"
+                    photo: "https://web-chat-app.com/users/profile-images/filippo.jpg"
+                    status: "online"
+                  - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
+                    username: "martina_02"
+                    photo: "https://web-chat-app.com/users/profile-images/martina.jpg"
+                    status: "online"
+                  - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
+                    username: "leo_snk"
+                    photo: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
+                    status: "offline"
+                  - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
+                    username: "giulia_m"
+                    photo: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
+                    status: "online"
+                admins:
+                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"   
+                  - "c5b9289e-cc09-4c32-9b5f-12629faecb8d"   
+                dtCreated: "2025-11-06T15:09:58Z"
+                snippet: "Welcome to BestShooters!"
+                dtLastMessage: "2025-11-06T15:10:23Z"
+
+        '403':
+          description: User is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+  /conversations/group/{conversationId}/description:                                  # modifico la descrizione del gruppo
+    put:
+      operationId: setGroupDescription
+      summary: Update group description
+      description: Only group admins can update the group description
+      tags:
+        - Group Conversations
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Conversation Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Group description update
+              properties:
+                groupDescription:
+                  type: string
+                  minLength: 0
+                  maxLength: 1000
+                  description: New group description
+              required:
+                - groupDescription
+      responses:
+        '200':
+          description: Group description updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupConversation"
+              example:
+                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                groupName: "BestShooters"
+                groupDescription: "Updated: This group is for elite shooters only! 🏀🔥"
+                groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
+                members:
+                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
+                    username: "fil_dev"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
+                    status: "online"
+                admins:
+                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
+                dtCreated: "2025-11-06T15:09:58Z"
+                snippet: "Group description updated"
+                dtLastMessage: "2025-11-09T11:20:15Z"
+        '403':
+          description: User is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+
+
+  /conversations/group/{conversationId}/photo:                              # modifico la foto del gruppo
+    put:
+      operationId: setGroupPhoto
+      summary: Update group photo
+      description: Only group admins can update the group photo
+      tags:
+        - Group Conversations
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Group Conversation Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                groupPhoto:
+                  type: string
+                  format: url
+                  description: URL to new group photo
+              required: 
+                - groupPhoto
+      responses:
+        '200':
+          description: Group photo updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupConversation"
+              example:
+                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                groupName: "BestShooters"
+                groupDescription: "This group is only for people who don't shoot bricks :)"
+                groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters_new.jpg"
+                members:
+                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
+                    username: "fil_dev"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
+                    status: "online"
+                admins:
+                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
+                dtCreated: "2025-11-06T15:09:58Z"
+                snippet: "Group photo updated"
+                dtLastMessage: "2025-11-09T11:25:30Z"
+        '403':
+          description: User is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+
+
+  /conversations/group/{conversationId}/members/{userId}:
+    delete:                                                         # Si rimuove un membro dal gruppo
+      operationId: removeMember
+      summary: Remove a member from the group
+      description: Only admins can remove members. Admins cannot be removed, they must be demoted first.
+      tags:
+        - Group Conversations
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Conversation ID
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique User ID
+      responses:
+        '204':
+          description: Member removed successfully
+        '400':
+          description: Cannot remove admin (must demote first)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '403':
+          description: User is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: Group or user not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+
+  /conversations/{conversationId}/stats:
+    get:
+      operationId: getConversationStats
+      summary: Get conversation statistics
+      description: Get message count, media count, etc.
+      tags:
+        - Conversations
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Conversation ID
+      responses:
+        '200':
+          description: Conversation statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationStats"
+              example:
+                totalMessages: 482
+                totalMembers: 5
+                mediaCount:
+                  images: 134
+                  videos: 27
+                  documents: 9
+        '403':
+          description: User is not part of this conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  
+
+
+  ########################################
+      # ENDPOINTS dei MESSAGGI
+  ########################################      
+
+  /conversations/{conversationId}/messages:
+    parameters:
+      - name: conversationId
+        in: path
+        required: true
+        schema:
           type: string
-          enum:
-            - info
-            - warning
-            - critical
-            - ""
-        title: { type: string }
-        message: { type: string }
-        url: { type: string }
+          format: uuid
+          description: Unique Conversation ID
+    
+    get:                                                # ritorna i messaggi di una specifica conversazione
+      operationId: allMessagesOfConversation
+      summary: Get all messages in a conversation
+      description: Returns messages in reverse chronological order (newest first)
+      tags:
+        - Messages
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Number of messages to return
+        - name: before
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Get messages before this timestamp (for pagination)
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Message"
+                    minItems: 1 # in ogni conversazione c'è almeno 1 messaggio (se una conversazione è iniziata, vuol dire che c'è almeno un messaggio --> per come l'ho implementata)
+                    description: Messages in reverse chronological order in this Conversation
+                  hasMore:
+                    type: boolean
+                    description: Indicates if there are more messages to load
+              example:
+                messages:
+                  - id: "e1f7b4a2-31e6-4b3d-99a1-4cc3c3e2f8c7"
+                    contentMess: "Hey everyone 👋 ready for tonight’s match?"
+                    timestamp: "2025-11-05T10:25:43Z"
+                    statusInfo: "read"
+                    conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
+                    senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
+                    senderUsername: "matthew"
+                    # deleted: false
+                    replyToMessageId: null
+                    forwarded: false
+                    reactions:
+                      - emoji: "🔥"
+                        userId: "bd9824e9-3b41-4a6c-b51a-81a7768b9f21"
+                      - emoji: "👍"
+                        userId: "e44f18a9-6cf2-4f19-b5a9-2f1de7fbc011"
 
-  responses:
-    Unauthorized:
-      description: The access token is missing or it's expired
-    BadRequest:
-      description: The request was not compliant with the documentation (eg. missing fields, etc)
-    InternalServerError:
-      description: The server encountered an internal error. Further info in server logs
+                  - id: "c8b6d99b-7d52-4a4d-b88a-f82f62221f31"
+                    contentMess: "Absolutely! Let’s go ⚽🔥"
+                    timestamp: "2025-11-05T10:27:12Z"
+                    statusInfo: "delivered"
+                    conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
+                    senderUserId: "b9d2a12e-9b52-43a9-8fd0-1a552f937f82"
+                    senderUsername: "lucas"
+                    # deleted: false
+                    replyToMessageId: "e1f7b4a2-31e6-4b3d-99a1-4cc3c3e2f8c7"
+                    forwarded: false
+                    reactions:
+                      - emoji: "💪"
+                        userId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
 
-  securitySchemes:
-    LegacyAuth:
-      type: apiKey
-      in: header
-      name: X-App-Token
-      description: |-
-        App session token value. This value is sent by the server in the login
-        and session refresh APIs.
+                  - id: "7bfa4e12-5d93-43a4-b1d8-f61cb211d87b"
+                    contentMess: "Sending you the lineup PDF 📄"
+                    timestamp: "2025-11-05T10:30:01Z"
+                    statusInfo: "sent"
+                    conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
+                    senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
+                    senderUsername: "matthew"
+                    # deleted: false
+                    replyToMessageId: null
+                    forwarded: true
+                    reactions: []
+                hasMore: true # esiston messaggi più vecchi che possono essere caricati con una altra chiama "?before="
+        '403':
+          description: User is not part of this conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
-  parameters:
-    XAppVersion:
-      schema:
-        type: string
-        pattern: '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$'
-        minLength: 1
-        maxLength: 10
-      name: X-App-Version
-      in: header
-      required: true
-      description: App human readable version ("semantic version" format)
-      allowEmptyValue: false
-    XAppBuild:
-      schema: { type: integer }
-      name: X-App-Build
-      in: header
-      required: true
-      description: App build number
-      allowEmptyValue: false
-    XAppLanguage:
-      schema:
-        type: string
-        pattern: '^[a-z]{2}([-_][A-Z]{2})?$'
-        minLength: 2
-        maxLength: 5
-      name: X-App-Language
-      in: header
-      required: true
-      description: App language in ISO 639-1 format
-      allowEmptyValue: false
-    XAppPlatform:
-      schema:
-        type: string
-        enum: [ios, android]
-      name: X-App-Platform
-      in: header
-      required: true
-      description: App operating system / platform
-      allowEmptyValue: false
-    cat:
-      schema:
-        type: string
-        pattern: '^[a-zA-Z]+$'
-        minLength: 3
-        maxLength: 10
-      name: cat
-      in: path
-      required: true
-      description: Cat
-      allowEmptyValue: false
+
+
+    post:                                                                     # invio di un nuovo messaggio
+      operationId: sendMessage
+      summary: Send a new message
+      description: Sending a new message in this conversation
+      tags:
+        - Messages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contentMessage:
+                  type: string
+                  minLength: 1
+                  maxLength: 5000
+                  description: Content of the new message to be sent
+                replyToMessageId:
+                  type: string
+                  format: uuid
+                  description: Optional - ID of message being replied to
+              required: 
+                - contentMessage
+      responses:
+        '201':    # Created
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewMessage"
+              example:
+                id: "b6a8c2d7-52f1-4c1e-9e54-41b3e1a5e7f4"
+                contentMess: "Hey guys, I just created the group event for tonight 🎉"
+                timestamp: "2025-11-05T10:48:31Z"
+                statusInfo: "sent"
+                conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
+                senderUserId: "9f2b3a17-4c9d-45b8-bc73-f4c0a9baf219"
+                senderUsername: "filippo"
+                # deleted: false
+                replyToMessageId: null
+                forwarded: false
+                reactions: []
+        '403':
+          description: User is not part of this conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+  /conversations/{conversationId}/messages/{messageId}:
+    parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Conversation ID
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Message ID
+  
+    put:                                                                        # Modifico un Messaggio
+      operationId: editMessage
+      summary: Edit a message
+      description: Only the sender can edit their own messages
+      tags:
+        - Messages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageUpdate"
+      responses:
+        '200':
+          description: Message updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+              example:
+                id: "b6a8c2d7-52f1-4c1e-9e54-41b3e1a5e7f4"
+                contentMess: "Hey guys, change of plans — meeting at 8:30 instead of 8 ⏰"
+                timestamp: "2025-11-05T11:10:45Z"
+                statusInfo: "delivered"
+                conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
+                senderUserId: "9f2b3a17-4c9d-45b8-bc73-f4c0a9baf219"
+                senderUsername: "filippo"
+                # deleted: false
+                replyToMessageId: null
+                forwarded: false
+                reactions:
+                  - emoji: "👍"
+                    userId: "d71a21d9-bf8e-4e5e-a1b4-98e12d8e2b67"
+                  - emoji: "😂"
+                    userId: "c12a0f4f-59b2-4d89-95ac-5b3a8d40b944"
+        '403':
+          description: User is not the sender of this message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: Message not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+    delete:                                                   # Utente elimina un messaggio da lui inviato in quella conversazione
+      operationId: deleteMessage
+      summary: Delete a message
+      description: Only the sender can delete their own messages
+      tags:
+        - Messages
+      responses:
+        '204':  # No Content
+          description: Message deleted successfully
+        '403':
+          description: User is not the sender of this message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: Message not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+  /conversations/{conversationId}/messages/reply:
+    post:                                                                   # Rispondere ad un messaggio
+      operationId: replyToMessage
+      summary: Reply to a specific message
+      description: Send a message as a reply to another message
+      tags:
+        - Messages
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Conversation ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplyMessage"
+          
+
+      responses:
+        '201':
+          description: Reply sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+              example:
+                id: "c4e2a91b-8732-45ef-94a9-6b8b0b9d32a7"
+                contentMess: "Haha yes, that meme was hilarious 😂"
+                timestamp: "2025-11-05T14:22:31Z"
+                statusInfo: "sent"
+                conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
+                senderUserId: "9f2b3a17-4c9d-45b8-bc73-f4c0a9baf219"
+                senderUsername: "filippo21"
+                # deleted: false
+                replyToMessageId: "5b13bde0-4d59-45b1-9f42-91c2a017d24a"
+                forwarded: false
+                reactions: []
+        '403':
+          description: User is not part of this conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: Original message not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+
+  /conversations/{conversationId}/messages/forward:
+    post:                                                             # Inoltrare un messaggio
+      operationId: forwardMessage
+      summary: Forward a message to another conversation
+      description: Forward an existing message to a different conversation
+      tags:
+        - Messages
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Conversation ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForwardMessage"           
+        
+      responses:
+        '201':
+          description: Message forwarded successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+              example:
+                id: "d8a2f96e-2b89-4f1d-8a32-94e0a22f13cc"
+                timestamp: "2025-11-05T15:10:42Z"
+                senderUserId: "b1f3a6c4-9d21-40de-94ef-2c84f15c3279"
+                statusInfo: "sent"
+                conversationId: "6e7f3d3a-4b81-4cf5-ae41-f6b6e85a0021"
+                contentMess: "📸 Check out this photo! (forwarded)"
+                senderUsername: "filippo21"
+                # deleted: false
+                replyToMessageId: null
+                forwarded: true
+                reactions: []
+        '403':
+          description: User is not part of source or target conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: Message or conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+
+
+
+  #######################
+  # ENDPOINTS REACTION
+  #######################
+
+  /conversations/{conversationId}/messages/{messageId}/reactions:
+    parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Conversation ID
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Message ID
+            
+    post:                                       #Aggiungere una Reazione a un messaggio specifico
+      operationId: commentMessage
+      summary: Add a reaction to a message
+      description: Add an emoji reaction to a message. Each user can only have one reaction per message.
+      tags:
+        - Reactions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewReaction"
+      responses:
+        '201':
+          description: Reaction added successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reaction"
+              example:
+                reactionId: "a4c1d2e3-f567-8901-2345-6789abcdef01"              ## id univoco reaction
+                emoji: "🔥"                                                     ## emoji che rappresenta la reazione aggiunta
+                timestamp: "2025-11-05T14:22:31Z"                               ## momento esatto (in UTC) in cui la reazione è stata aggiunta.
+                messageIdReaction: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
+                senderUserId: "9b5e7d1c-8a6f-4e0d-b2c7-1d9e8e3f1234"            ## UUID utente che ha reagito
+                senderUsername: "filippo_dev"                                   ## nome utente che ha reagito
+        '400':
+          description: User already reacted to this message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: Message not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+    delete:                                                               # Rimuovo una mia reazione a un messaggio (Un utente può rimuovere solo una propria reazione, non quella di altri (anche se admin, se siamo in un gruppo))
+      operationId: uncommentMessage
+      summary: Remove reaction from a message
+      description: Remove the authenticated user's reaction from a message
+      tags:
+        - Reactions
+      responses:
+        '204':
+          description: Reaction removed successfully
+        '404':
+          description: Message or reaction not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    get:                                                                # ritorno tutte le Reazioni a un messaggio specifico
+      operationId: getAllMessageReactions
+      summary: Get all reactions for a message
+      description: I take all the reactions of a specific message
+      tags:
+        - Reactions
+      responses:
+        '200':
+          description: List of reactions
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Reactions
+                properties:
+                  reactions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Reaction"
+                    minItems: 0
+                    maxItems: 300                                 # numero massimo di partecipanti in un gruppo --> di conseguenza anche il numero massimo di reazioni (visto che è una a testa)
+                    description: All the reactions of this message
+              example:
+                reactions:
+                  - reactionId: "c1f3a7d2-4b9e-4568-8e23-7890abcd1234"
+                    emoji: "❤️"
+                    timestamp: "2025-11-05T10:12:45Z"
+                    messageIdReaction: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
+                    senderUserId: "b7e9d5c2-1a4f-4b21-8f9b-6c1e7a8b9e01"
+                    senderUsername: "martina_98"
+                  - reactionId: "f9b8a2e4-7c65-4a91-b302-3456def789ab"
+                    emoji: "😂"
+                    timestamp: "2025-11-05T10:14:02Z"
+                    messageIdReaction: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
+                    senderUserId: "d3a1e4b7-8c9f-4e21-9a3d-5b6e8f7a0c12"
+                    senderUsername: "luca_dev"
+                  - reactionId: "a2d9b7e3-c456-4f8a-b321-9e0a1b2c3d45"
+                    emoji: "🔥"
+                    timestamp: "2025-11-05T10:15:18Z"
+                    messageIdReaction: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
+                    senderUserId: "9b5e7d1c-8a6f-4e0d-b2c7-1d9e8e3f1234"
+                    senderUsername: "filippo_dev"
+
+
+  #####################################
+  # ENDPOINTS STATO E PROFILO UTENTE
+  #####################################
+
+  /users/me:
+    get:                                                                    # Ottengo i dettagli del profilo che è loggato in questo momento
+      operationId: myProfileDetails
+      summary: Get current user profile
+      description: Returns all the information about the user logged in to the session
+      tags:
+        - Users
+      responses:
+        '200':
+          description: Current user details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+              example:
+                id: "f2a1b7d4-9c5e-4b2e-a6d3-8e1a9c7d5b22"
+                username: "filippo_dev"
+                status: "Coding some new features 🚀"
+                profilePhoto: "https://web-chat-app.com/users/profile-images/filippo_dev.jpg"
+                dtRegistration: "2024-03-12T14:25:47Z"
+                lastTimeOnline: "2025-11-05T09:42:10Z"
+
+
+
+    patch:                                                                  # Modifico il profilo utente, dell'utente loggato in questo momento
+      operationId: modifyProfile
+      summary: Update current user profile
+      description: Update current User profile logged in this session
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Update profile status and profile photo
+              properties:
+                status:
+                  type: string
+                  minLength: 0
+                  maxLength: 200
+                  description: User status message
+                profilePhoto:
+                  type: string
+                  format: url
+                  description: URL to profile photo
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+              example:
+                id: "9e7f5a61-8b24-4c2a-bb5a-1b1e2b6e91cd"
+                username: "filippo_dev"
+                status: "Taking a coffee break ☕"
+                profilePhoto: "https://web-chat-app.com/users/profile-images/filippo_dev_new.jpg"
+                dtRegistration: "2024-03-12T14:25:47Z"
+                lastTimeOnline: "2025-11-05T10:12:30Z"
+
+  /users/{userId}:
+    get:                                                                      # ritornare un profilo utente tramite id
+      operationId: getUserProfile
+      summary: Get user profile by ID
+      description: I return the user profile by passing his ID as a parameter in the path
+      tags:
+        - Users
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique User ID
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+              example:
+                id: "9e7f5a61-8b24-4c2a-bb5a-1b1e2b6e91cd"
+                username: "filippo_dev"
+                status: "Taking a coffee break ☕"
+                profilePhoto: "https://web-chat-app.com/users/profile-images/filippo_dev_new.jpg"
+                dtRegistration: "2024-03-12T14:25:47Z"
+                lastTimeOnline: "2025-11-05T10:12:30Z"
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+  /users/blocked:
+    get:                                                                # ritorna tutti gli Utenti bloccati dall'utente attualmente nella sessione
+      operationId: allUsersBlocked
+      summary: Get list of blocked users
+      description: Returns the list of all users blocked by the logged in user in session
+      tags:
+        - Users
+      responses:
+        '200':
+          description: List of blocked users
+          content:
+            application/json:
+              schema:
+                type: object
+                description: blocked users schema
+                properties:
+                  blockedUsers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/User"
+                    minItems: 0                                    # un utente potrebbe avere 0 utenti bloccati
+                    description: All users blocke by the user logged in this session
+              example:
+                blockedUsers:
+                  - id: "b4a2f891-39a5-4c7d-92e4-3f7b52baf041"
+                    username: "marco_92"
+                    status: "Can't message me right now 🚫"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/marco_92.jpg"
+                    dtRegistration: "2023-10-15T09:45:21Z"
+                    lastTimeOnline: "2025-11-05T08:30:10Z"
+
+                  - id: "e2f1c3d7-7b22-48cc-bd24-b7e8c4b91e2a"
+                    username: "sara_tech"
+                    status: "Living offline 🌿"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/sara_tech.png"
+                    dtRegistration: "2024-01-27T17:20:02Z"
+                    lastTimeOnline: "2025-11-04T21:05:47Z"
+
+
+  /users/{userId}/block:
+    parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique User ID
+    
+    post:                                                             # Utente nella sessione blocca un utente  
+      operationId: blockUser                             
+      summary: Block a user
+      description: Blocked users cannot send messages or see your status
+      tags:
+        - Users 
+      responses:
+        '204':
+          description: User blocked successfully
+        '400':
+          description: Cannot block yourself
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    delete:                                                         # Utente nella sessione "Sblocca" un Utente
+      operationId: unblockUser
+      summary: Unblock a user
+      description: When the user decides to unblock a user he has blocked (and is still blocked)
+      tags:
+        - Users
+      responses:
+        '204':
+          description: User unblocked successfully
+
+
+
+
+  
+  ###########################################
+  # ALTRO
+  ###########################################
+
+  /search/messages:
+    get:                                                        # cerca un messaggio (in generale) --> trovabile in tutte le conversazioni (non una specifica)
+      operationId: searchMessageGlob
+      summary: Search messages across all conversations
+      description: Search for a specific message, the message can be found in all (still saved) conversations the user has had
+      tags:
+        - Search
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string  
+            minLength: 1
+          description: Search query text
+        - name: conversationId
+          in: query
+          schema:
+            type: string
+            format: uuid
+            description: Optional - limit search to specific conversation
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Number of results to return
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Matching Messages Founded
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Message"
+                    minItems: 0         # posso trovare anche 0 match di messaggi
+                    description: Matching messages
+                  total:
+                    type: integer
+                    description: Total number of matching messages
+              example:
+                total: 2
+                messages:
+                  - id: "b8e4e2f5-3f1b-4d87-8f1e-54c6b621e8a2"
+                    contentMess: "Hey, did you check the new FlowChat design update?"
+                    timestamp: "2025-11-05T09:25:14Z"
+                    statusInfo: "read"
+                    conversationId: "6f9a2d9b-4e47-4128-8452-ec9e30f3e781"
+                    senderUserId: "a123e456-789b-12d3-a456-426614174000"
+                    senderUsername: "filippo98"
+                    # deleted: false
+                    replyToMessageId: null
+                    forwarded: false
+                    reactions:
+                      - reactionId: "0f18b98a-6f1c-4c3b-9e89-9cfb3bfe6423"
+                        emoji: "👍"
+                        timestamp: "2025-11-05T09:26:01Z"
+                        messageIdReaction: "1b3dt48a-3d1e-3v6d-9w89-9cer3rth6423"
+                        senderUserId: "7b5e6d33-4f91-44fa-b15c-217d8c3fbd28"
+                        senderUsername: "marco_92"
+
+                  - id: "9e12b8d4-8b7f-4d33-82e2-0a9c2db176c9"
+                    contentMess: "Yeah, I saw it! The new color palette looks amazing 😍"
+                    timestamp: "2025-10-30T18:11:42Z"
+                    statusInfo: "delivered"
+                    conversationId: "6f9a2d9b-4e47-4128-8452-ec9e30f3e781"
+                    senderUserId: "7b5e6d33-4f91-44fa-b15c-217d8c3fbd28"
+                    senderUsername: "marco_92"
+                    # deleted: false
+                    replyToMessageId: "b8e4e2f5-3f1b-4d87-8f1e-54c6b621e8a2"
+                    forwarded: false
+                    reactions: []
+
+
+  /notifications:
+    get:                                                                # Si ottengono tutte le notifiche dell'utente nella sessione
+      operationId: allNotifications
+      summary: Get user notifications
+      description: Get list of notifications for the user (mentions, replies, new messages when offline, etc.)
+      tags:
+        - Notifications
+      parameters:
+        - name: unreadOnly                                              # le notifiche ancora NON lette
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: If true, return only unread notifications
+        - name: limit                                                   # limite di notifiche da ritornare (di default ho messo 50)
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Number of notifications to return
+      responses:
+        '200':
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notifications:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Notification"
+                  unreadCount:                                          # numero totale notifiche ancora non lette
+                    type: integer
+                    description: Total number of unread notifications
+
+
+
+
+  /notifications/{notificationId}/read:
+    put:                                                                # Segno come "Letto" una notifica specifica
+      operationId: readNotification
+      summary: Mark notification as read
+      description: I mark a specific notification as read
+      tags:
+        - Notifications
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Notification ID
+      responses:
+        '204':
+          description: Notification marked as read
+        '404':
+          description: Notification not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+
+  /notifications/read_all:
+    put:                                                              # Segno come "Letto" tutte le notifiche
+      operationId: readAllNotifications
+      summary: Mark all notifications as read
+      description: Mark all notifications as read
+      tags:
+        - Notifications
+      responses:
+        '204':
+          description: All notifications marked as read
+
+
+  # Media e Upload
+  /media/upload:
+    post:                                                       # caricamento di un "Media File"
+      operationId: uploadMediaFile
+      summary: Upload media file (image, video, document)
+      description: |
+        Upload a media file and receive a URL to include in message content.
+        Supported formats:
+        - Images: jpg, jpeg, png, gif, webp (max 10MB)
+        - Videos: mp4, mov, avi (max 50MB)
+        - Documents: pdf, doc, docx, txt, xlsx (max 20MB)
+      tags:
+        - Media
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              description: File and file type
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File to upload
+                fileType:
+                  type: string
+                  enum: 
+                    - image 
+                    - video
+                    - document
+                  description: Type of media being uploaded
+              required: 
+                - file 
+                - fileType
+      responses:
+        '201':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Url, media type, size and file name
+                properties:
+                  url:
+                    type: string
+                    format: url
+                    description: URL of uploaded file
+                  mediaType:
+                    type: string
+                    description: MIME type of the file
+                  size:
+                    type: integer
+                    description: File size in bytes
+                  filename:
+                    type: string
+                    description: Original filename
+              example:
+                url: "https://cdn.flowchatapp.com/uploads/2025/11/05/profile_picture_93a4b.png"
+                mediaType: "image/png"
+                size: 482193
+                filename: "profile_picture.png"
+        '400':
+          description: Invalid file type or size exceeds limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+
