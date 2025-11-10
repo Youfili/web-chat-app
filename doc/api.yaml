@@ -810,88 +810,6 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /users/search:                                          # Ricercare un utente tra tutti gli utenti registrati nella web app
-    get:
-      operationId: searchUser
-      summary: Search for a user by username
-      description: |-
-        Retrieves a user's profile information. 
-        If the user exists, their public details are returned; otherwise, 
-        an error response is provided.
-      tags:
-        - Users
-      parameters:
-        - name: username
-          in: query
-          required: true
-          schema:
-            type: string
-            minLength: 3
-            maxLength: 30
-          description: Username to search for
-      responses:
-        '200':
-          description: User found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/User"
-              example:
-                id: "550e8400-e29b-41d4-a716-446655440000"
-                username: "steph_curry"
-                status: "Available, write to me! :)"
-                profilePhoto: "https://web-chat-app.com/users/profile-images/steph_curry.png"
-                dtRegistration: "2024-11-02T14:25:30Z"
-                lastTimeOnline: "2025-11-05T09:48:10Z"
-        '404':
-          description: User Not Found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /users/me/username:
-    put:                                               # Modifico il mio username
-      operationId: setMyUserName
-      summary: Update current user's username
-      description: |-
-        Updates the username of the currently authenticated user.  
-        The request must include the new desired username in the request body.  
-        If the username is valid and not already taken, it is updated successfully  
-        and the updated user profile is returned.  
-        If the username already exists, an error response is returned.
-      tags:
-        - Users
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateUsernameRequest"
-
-      responses:
-        '200':
-          description: Username updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/User"
-              example:
-                id: "550e8400-e29b-41d4-a716-446655440000"
-                username: "Ryan_Ted"
-                status: "Focused on this project :)"
-                profilePhoto: "https://web-chat-app.com/users/profile-images/ryan_ted.png"
-                dtRegistration: "2024-11-02T14:25:30Z"
-                lastTimeOnline: "2025-11-05T10:12:45Z"
-
-        '400':
-          description: Username already exists
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-
   /conversations:                         # prendo tutte le conversazioni dell'utente loggato in corso --> Lista delle conversazioni (pannelllo a sinistra)
     get:
       operationId: getMyConversations
@@ -2348,8 +2266,8 @@ paths:
 
 
     patch:                                                                  # Modifico il profilo utente, dell'utente loggato in questo momento
-      operationId: modifyProfile
-      summary: Update current user profile
+      operationId: modifyProfileStatus
+      summary: Update current user profile status
       description: Update current User profile logged in this session
       tags:
         - Users
@@ -2359,20 +2277,16 @@ paths:
           application/json:
             schema:
               type: object
-              description: Update profile status and profile photo
+              description: Update profile status 
               properties:
                 status:
                   type: string
                   minLength: 0
                   maxLength: 200
                   description: User status message
-                profilePhoto:
-                  type: string
-                  format: url
-                  description: URL to profile photo
       responses:
         '200':
-          description: Profile updated successfully
+          description: Profile Status updated successfully
           content:
             application/json:
               schema:
@@ -2384,6 +2298,137 @@ paths:
                 profilePhoto: "https://web-chat-app.com/users/profile-images/filippo_dev_new.jpg"
                 dtRegistration: "2024-03-12T14:25:47Z"
                 lastTimeOnline: "2025-11-05T10:12:30Z"
+
+
+  /users/search:                                          # Ricercare un utente tra tutti gli utenti registrati nella web app
+    get:
+      operationId: searchUser
+      summary: Search for a user by username
+      description: |-
+        Retrieves a user's profile information. 
+        If the user exists, their public details are returned; otherwise, 
+        an error response is provided.
+      tags:
+        - Users
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 30
+          description: Username to search for
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+              example:
+                id: "550e8400-e29b-41d4-a716-446655440000"
+                username: "steph_curry"
+                status: "Available, write to me! :)"
+                profilePhoto: "https://web-chat-app.com/users/profile-images/steph_curry.png"
+                dtRegistration: "2024-11-02T14:25:30Z"
+                lastTimeOnline: "2025-11-05T09:48:10Z"
+        '404':
+          description: User Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /users/me/username:
+    put:                                               # Modifico il mio username
+      operationId: setMyUserName
+      summary: Update current user's username
+      description: |-
+        Updates the username of the currently authenticated user.  
+        The request must include the new desired username in the request body.  
+        If the username is valid and not already taken, it is updated successfully  
+        and the updated user profile is returned.  
+        If the username already exists, an error response is returned.
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUsernameRequest"
+
+      responses:
+        '200':
+          description: Username updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+              example:
+                id: "550e8400-e29b-41d4-a716-446655440000"
+                username: "Ryan_Ted"
+                status: "Focused on this project :)"
+                profilePhoto: "https://web-chat-app.com/users/profile-images/ryan_ted.png"
+                dtRegistration: "2024-11-02T14:25:30Z"
+                lastTimeOnline: "2025-11-05T10:12:45Z"
+
+        '400':
+          description: Username already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+
+  /users/me/photo:
+    put:
+      operationId: setMyPhoto
+      summary: Update current user's profile photo
+      description: |-
+        Updates the profile photo of the currently authenticated user.
+        The request must include the new photo URL in the request body.
+        If the URL is valid, the profile photo is updated successfully
+        and the updated user profile is returned.
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                profilePhoto:
+                  type: string
+                  format: url
+                  description: URL to new profile photo
+              required:
+                - profilePhoto
+      responses:
+        '200':
+          description: Profile photo updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+              example:
+                id: "550e8400-e29b-41d4-a716-446655440000"
+                username: "filippo_dev"
+                status: "Focused on this project :)"
+                profilePhoto: "https://web-chat-app.com/users/profile-images/filippo_new_photo.png"
+                dtRegistration: "2024-11-02T14:25:30Z"
+                lastTimeOnline: "2025-11-10T10:30:15Z"
+        '400':
+          description: Invalid URL format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
 
   /users/{userId}:
     get:                                                                      # ritornare un profilo utente tramite id
