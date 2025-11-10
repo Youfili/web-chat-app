@@ -27,6 +27,8 @@ tags:
     description: User notification management
   - name: Search
     description: Search functionality across messages and conversations
+  - name: Favourites
+    description: Favourite messages management
 
 components:
   schemas:  
@@ -485,6 +487,68 @@ components:
         - messToReactId
         - senderUserId
         - senderUsername
+
+
+    Favourite:
+      type: object
+      description: Relationship between a user and their favourite message
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique favourite ID
+        userId:
+          type: string
+          format: uuid
+          description: User who marked this as favourite
+        messageId:
+          type: string
+          format: uuid
+          description: The message marked as favourite
+        conversationId:
+          type: string
+          format: uuid
+          description: Conversation where the message belongs
+        dateMarked:
+          type: string
+          format: date-time
+          description: When the message was marked as favourite
+      required:
+        - id
+        - userId
+        - messageId
+        - conversationId
+        - dateMarked
+
+    
+    FavouriteMessageWithContext:
+      type: object
+      description: Favourite message with conversation context
+      properties:
+        favourite:
+          $ref: "#/components/schemas/Favourite"
+        message:
+          $ref: "#/components/schemas/Message"
+        conversationInfo:
+          type: object
+          properties:
+            conversationId:
+              type: string
+              format: uuid
+              description: Unique Conversation ID
+            conversationType:
+              type: string
+              enum: 
+                - single 
+                - group
+              description: Type of conversation in which the message added to favorites is located
+            conversationName:
+              type: string
+              description: Username for single conversations, group name for groups
+            conversationPhoto:
+              type: string
+              format: url
+              description: Conversation photo
 
 
     AddMembersRequest:
@@ -2598,6 +2662,190 @@ paths:
           description: All notifications marked as read
 
 
+
+  /conversations/{conversationId}/messages/{messageId}/favourite:
+    parameters:
+      - name: conversationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          description: Unique Conversation ID
+      - name: messageId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          description: Unique Message ID
+    
+    post:                                                                             # Aggiungo un messaggio tra i "Preferiti" in questa conversazione specifica
+      operationId: addMessageToFavourites
+      summary: Add message to favourites
+      description: Mark a message as favourite in this conversation
+      tags:
+        - Favourites  
+      responses:
+        '204':
+          description: Message added to favourites successfully
+        '400':  
+          description: Message already in favourites
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '403':
+          description: User is not part of this conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: Message not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    
+    delete:                                                                           # Rimuovo un messaggio tra i "Preferiti" in questa conversazione specifica
+      operationId: removeMessageFromFavourites
+      summary: Remove message from favourites
+      description: Unmark a message as favourite
+      tags:
+        - Favourites  
+      responses:
+        '204':
+          description: Message removed from favourites successfully
+        '404':
+          description: Message not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+
+  /conversations/{conversationId}/favourites:
+    get:                                                                                          # ottengo tutti i preferiti di una conversazione specifica
+      operationId: getConversationFavourites
+      summary: Get favourite messages in a conversation
+      description: Returns all messages marked as favourite in this specific conversation
+      tags:
+        - Favourites  
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Unique Conversation ID
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Number of favourites to return
+      responses:
+        '200':
+          description: List of favourite messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  favourites:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Message"
+                    description: Favourite messages in this conversation
+                  total:
+                    type: integer
+                    description: Total number of favourites in this conversation
+              example:
+                total: 3
+                favourites:
+                  - id: "e1f7b4a2-31e6-4b3d-99a1-4cc3c3e2f8c7"
+                    contentMess: "Important: Meeting at 5 PM tomorrow"
+                    timestamp: "2025-11-05T10:25:43Z"
+                    statusInfo: "read"
+                    conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
+                    senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
+                    senderUsername: "matthew"
+                    forwarded: false
+                    replyToMessageId: null
+                    reactions: []
+        '403':
+          description: User is not part of this conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
+
+
+  /favourites:
+    get:                                                                                  # Endpoint Globale --> tutti i preferiti dell'utente.
+      operationId: getAllUserFavourites
+      summary: Get all favourite messages across all conversations
+      description: |-
+        Returns all messages marked as favourite by the authenticated user,
+        grouped by conversation with context information
+      tags:
+        - Favourites  
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Number of favourites to return
+      responses:
+        '200':
+          description: List of all favourite messages with context
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  favourites:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FavouriteMessageWithContext"
+                    description: All favourite messages with conversation context
+                  total:
+                    type: integer
+                    description: Total number of favourites
+              example:
+                total: 5
+                favourites:
+                  - favourite:
+                      id: "f1a2b3c4-5d6e-7f8g-9h0i-1j2k3l4m5n6o"
+                      userId: "9f2b3a17-4c9d-45b8-bc73-f4c0a9baf219"        # es. Filippo
+                      messageId: "e1f7b4a2-31e6-4b3d-99a1-4cc3c3e2f8c7"
+                      conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
+                      dateMarked: "2025-11-08T15:30:00Z"
+                    message:
+                      id: "e1f7b4a2-31e6-4b3d-99a1-4cc3c3e2f8c7"
+                      contentMess: "Don't forget the deadline is Friday! 📅"
+                      timestamp: "2025-11-05T10:25:43Z"
+                      statusInfo: "read"
+                      conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
+                      senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
+                      senderUsername: "marco_dev"
+                      replyToMessageId: null
+                      forwarded: false
+                      reactions: []
+                    conversationInfo:
+                      conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
+                      conversationType: "group"
+                      conversationName: "Work Team"
+                      conversationPhoto: "https://web-chat-app.com/groups/profile-images/work_team.jpg"
+
+
+
   # Media e Upload
   /media/upload:
     post:                                                       # caricamento di un "Media File"
@@ -2656,7 +2904,7 @@ paths:
                     type: string
                     description: Original filename
               example:
-                url: "https://cdn.flowchatapp.com/uploads/2025/11/05/profile_picture_93a4b.png"
+                url: "https://flowchatapp.com/uploads/2025/11/05/profile_picture_93a4b.png"
                 mediaType: "image/png"
                 size: 482193
                 filename: "profile_picture.png"
