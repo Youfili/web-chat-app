@@ -1,8 +1,8 @@
-# WebChat – Real-Time Messaging Application
+# WASAtext – Real-Time Messaging Application
 
 This repository contains the implementation of a **web-based chat application** developed as part of the *Web and Software Architecture* course project at [Sapienza University of Rome](http://gamificationlab.uniroma1.it/en/wasa/).
 
-**WebChat** allows users to communicate in real time through an intuitive and responsive web interface.  
+**WASAtext** allows users to communicate in real time through an intuitive and responsive web interface.  
 The project focuses on applying key concepts of web architecture, including client-server communication, RESTful APIs, and real-time data exchange.
 
 > This project was developed for educational purposes and is **not intended for production environments**.
