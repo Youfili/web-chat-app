@@ -24,10 +24,8 @@ tags:
     description: Message operations (send, edit, delete, reply, forward)
   - name: Reactions
     description: Message reaction operations
-  - name: Media
-    description: Media file upload and management
-  - name: Notifications
-    description: User notification management
+  # - name: Notifications
+  #   description: User notification management
   - name: Search
     description: Search functionality across messages and conversations
   - name: Favourites
@@ -57,7 +55,7 @@ components:
           minLength: 3
           maxLength: 30
           example: steph_curry
-          pattern: '^[A-Za-z0-9_]+$'
+          pattern: '^[a-zA-Z0-9._~-]+$'
           description: Unique username; only letters, numbers and underscore
         profilePhoto:
           type: string
@@ -168,9 +166,10 @@ components:
           type: array
           items:
             type: string
-            description: Username of member to add
             minLength: 3
             maxLength: 30
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of member to add
           minItems: 1                                   # almeno un utente deve essere unito al gruppo (quando creato)
           maxItems: 300
           description: Group members
@@ -216,6 +215,7 @@ components:
           type: string
           minLength: 3
           maxLength: 30
+          pattern: '^[a-zA-Z0-9._~-]+$'
           description: recipient username
         initialMessage:
           type: string
@@ -264,7 +264,7 @@ components:
           type: string
           minLength: 3
           maxLength: 30
-          pattern: '^[A-Za-z0-9_]+$'
+          pattern: '^[a-zA-Z0-9._~-]+$'
           description: Username of user who sent
         # deleted:
         #   type: boolean
@@ -550,63 +550,63 @@ components:
 
 
 
-    Notification:
-      type: object
-      description: Representation of a message notification
-      properties:
-        id:
-          type: string
-          format: uuid
-          description: Notification ID
-        notificationType:
-          type: string
-          enum:
-            - new_message
-            - message_reply
-            - message_mention
-            - group_invite
-            - group_member_added
-            - group_member_removed
-            - group_admin_promoted
-            - group_admin_demoted
-            - reaction_added
-          description: Type of notification
-        title:
-          type: string
-          minLength: 1
-          maxLength: 200
-          description: Notification title
-        body:
-          type: string
-          minLength: 1
-          maxLength: 500
-          description: Notification body text
-        relatedUserId:
-          type: string
-          format: uuid
-          description: ID of user who triggered the notification
-        relatedConversationId:
-          type: string
-          format: uuid
-          description: ID of related conversation
-        relatedMessageId:
-          type: string
-          format: uuid
-          description: ID of related message (if applicable)
-        timestamp:
-          type: string
-          format: date-time
-          description: Notification timestamp
-        read:
-          type: boolean
-          default: false
-          description: Indicates whether the notification has been read or not
-      required: 
-        - id
-        - notificationType
-        - title
-        - timestamp
-        - read
+    # Notification:
+    #   type: object
+    #   description: Representation of a message notification
+    #   properties:
+    #     id:
+    #       type: string
+    #       format: uuid
+    #       description: Notification ID
+    #     notificationType:
+    #       type: string
+    #       enum:
+    #         - new_message
+    #         - message_reply
+    #         - message_mention
+    #         - group_invite
+    #         - group_member_added
+    #         - group_member_removed
+    #         - group_admin_promoted
+    #         - group_admin_demoted
+    #         - reaction_added
+    #       description: Type of notification
+    #     title:
+    #       type: string
+    #       minLength: 1
+    #       maxLength: 200
+    #       description: Notification title
+    #     body:
+    #       type: string
+    #       minLength: 1
+    #       maxLength: 500
+    #       description: Notification body text
+    #     relatedUserId:
+    #       type: string
+    #       format: uuid
+    #       description: ID of user who triggered the notification
+    #     relatedConversationId:
+    #       type: string
+    #       format: uuid
+    #       description: ID of related conversation
+    #     relatedMessageId:
+    #       type: string
+    #       format: uuid
+    #       description: ID of related message (if applicable)
+    #     timestamp:
+    #       type: string
+    #       format: date-time
+    #       description: Notification timestamp
+    #     read:
+    #       type: boolean
+    #       default: false
+    #       description: Indicates whether the notification has been read or not
+    #   required: 
+    #     - id
+    #     - notificationType
+    #     - title
+    #     - timestamp
+    #     - read
 
 
     AdminRequest:
@@ -629,6 +629,7 @@ components:
           type: string
           minLength: 3
           maxLength: 30
+          pattern: '^[a-zA-Z0-9._~-]+$'
           description: New username (must be unique)
       required: 
         - newUsername
@@ -687,7 +688,7 @@ components:
 
 paths:
 
-  /session:
+  /wasatext/login:
     post:
       operationId: doLogin
       security: []
@@ -727,7 +728,7 @@ paths:
               example:
                 identifier: "c12f8a3b-45d2-4baf-b27a-89dc4f3b5f9c"
   
-  /register:                                                                                  # Registrare un nuovo utente
+  /wasatext/register:                                                                                  # Registrare un nuovo utente
     post:
       operationId: registerUser
       security: []
@@ -749,7 +750,7 @@ paths:
                   type: string
                   minLength: 3
                   maxLength: 30
-                  pattern: '^[A-Za-z0-9_]+$'
+                  pattern: '^[a-zA-Z0-9._~-]+$'
                   example: steph_curry
                   description: Unique username (letters, numbers, underscore only)
                 status:
@@ -804,7 +805,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /conversations:                         # prendo tutte le conversazioni dell'utente loggato in corso --> Lista delle conversazioni (pannelllo a sinistra)
+  /wasatext/{username}/conversations:     # prendo tutte le conversazioni dell'utente loggato in corso --> Lista delle conversazioni (pannelllo a sinistra)
     get:
       operationId: getMyConversations
       summary: Get all conversations for the authenticated user
@@ -813,6 +814,17 @@ paths:
         timestamp (most recent first)
       tags:
         - Conversations
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30 
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
+          description: Searching Conversation
       responses:
         '200':
           description: List of conversations
@@ -867,7 +879,7 @@ paths:
                     dtCreated: "2025-09-01T18:00:00Z"
 
 
-  /conversations/search:                 # ricerco una conversation specifica all'interno delle mie (utente loggato in sessione) conversazioni.
+  /wasatext/{username}/conversations/search:                 # ricerco una conversation specifica all'interno delle mie (utente loggato in sessione) conversazioni.
     get:
       operationId: getConversation
       summary: Search conversations by name
@@ -875,6 +887,15 @@ paths:
       tags:
         - Conversations
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30   
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: query
           in: query
           required: true
@@ -948,15 +969,25 @@ paths:
                 $ref: "#/components/schemas/Error"
 
   #######################################              
-  # ENDPOINTS di Conversazioni Singole.
+  # ENDPOINTS di Conversazioni Private.
   ########################################
-  /conversations/private-chat:
+  /wasatext/{username}/conversations/private-chat:
     post:
       operationId: newPrivateChat
       summary: Create a new Private Chat
       description: Creates a new Private Chat with initial message. If conversation already exists, returns existing conversation.
       tags:
         - Private Chats
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30  
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
       requestBody:
         required: true
         content:
@@ -1009,8 +1040,17 @@ paths:
 
 
 
-  /conversations/private-chat/{conversationId}:                   # ritorna l'id della singola "Private Chat" --> nel path
+  /wasatext/{username}/conversations/private-chat/{conversationId}:                   # ritorna l'id della singola "Private Chat" --> nel path
     parameters:                                             # definisco i parameters UNA SOLA VOLTA a livello di path --> non lo ripeto per ogni operazione
+    - name: username
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 3                 
+        maxLength: 30              
+        description: Username of the user loggin in this session
+        pattern: '^[a-zA-Z0-9._~-]+$'
     - name: conversationId
       in: path
       required: true
@@ -1077,13 +1117,23 @@ paths:
   ########################################
   # ENDPOINTS di Conversazioni di Gruppo.
   ########################################
-  /conversations/group:
+  /wasatext/{username}/conversations/group:
     post:                                                   # Creo un nuovo gruppo
       operationId: createNewGroup
       summary: Create a new group Chat
       description: A new group Chat is created
       tags:
         - Group Chat
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30             
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
       requestBody:
         required: true
         content:
@@ -1131,7 +1181,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /conversations/group/{conversationId}:
+  /wasatext/{username}/conversations/group/{conversationId}:
     get:                                                      # ottengo una conversazione di Gruppo specifica in base all'id
       operationId: getGroupChat
       summary: Get a specific group Chat
@@ -1139,6 +1189,15 @@ paths:
       tags:
         - Group Chats
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30  
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -1187,7 +1246,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /conversations/group/{conversationId}/members:
+  /wasatext/{username}/conversations/group/{conversationId}/members:
     post:                                                     # Aggiungo un Membro al Gruppo
       operationId: addToGroup
       summary: Add members to a group
@@ -1195,6 +1254,15 @@ paths:
       tags: 
         - Group Chats
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30  
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -1260,7 +1328,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /conversations/group/{conversationId}/leave:
+  /wasatext/{username}/conversations/group/{conversationId}/leave:
     post:
       operationId: leaveGroup
       summary: Leave a group Chat
@@ -1268,6 +1336,15 @@ paths:
       tags:
         - Group Chats
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30   
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -1293,7 +1370,7 @@ paths:
 
 
 
-  /conversations/group/{conversationId}/admins:
+  /wasatext/{username}/conversations/group/{conversationId}/admins:
     post:                                                           # Rendere Admin un membro del gruppo
       operationId: makeAdmin
       summary: Make a user an admin of the group
@@ -1301,6 +1378,15 @@ paths:
       tags:
         - Group Chats
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30      
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -1368,7 +1454,7 @@ paths:
 
 
 
-  /conversations/group/{conversationId}/admins/{username}:
+  /wasatext/{username}/conversations/group/{conversationId}/admins/{usernameAdmin}:
     delete:                                                                   # Rimuovo lo stato di Admin da un membro del gruppo
       operationId: removeAdminStatus
       summary: Remove admin status from a user
@@ -1376,6 +1462,15 @@ paths:
       tags:
         - Group Chats
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30  
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -1383,7 +1478,7 @@ paths:
             type: string
             format: uuid
             description: Unique Conversation ID
-        - name: username
+        - name: usernameAdmin
           in: path
           required: true
           schema:
@@ -1444,7 +1539,7 @@ paths:
 
 
 
-  /conversations/{conversationId}/typing:
+  /wasatext/{username}/conversations/{conversationId}/typing:
     post:                                                               # Indicatore di "sta scrivendo"
       operationId: isTyping
       summary: Send typing indicator
@@ -1452,6 +1547,15 @@ paths:
       tags:
         - Conversations
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30  
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -1483,7 +1587,7 @@ paths:
 
 
 
-  /conversations/group/{conversationId}/name:
+  /wasatext/{username}/conversations/group/{conversationId}/name:
     put:                                                              # modifico nome  gruppo
       operationId: setGroupName
       summary: Update group name
@@ -1491,6 +1595,15 @@ paths:
       tags:
         - Group Chats
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30  
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -1559,7 +1672,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /conversations/group/{conversationId}/description:                                  # modifico la descrizione del gruppo
+  /wasatext/{username}/conversations/group/{conversationId}/description:                                  # modifico la descrizione del gruppo
     put:
       operationId: setGroupDescription
       summary: Update group description
@@ -1567,6 +1680,15 @@ paths:
       tags:
         - Group Chats
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30  
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -1628,7 +1750,7 @@ paths:
 
 
 
-  /conversations/group/{conversationId}/photo:                              # modifico la foto del gruppo
+  /wasatext/{username}/conversations/group/{conversationId}/photo:                              # modifico la foto del gruppo
     put:
       operationId: setGroupPhoto
       summary: Update group photo
@@ -1636,6 +1758,15 @@ paths:
       tags:
         - Group Chats
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30   
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -1695,7 +1826,7 @@ paths:
 
 
 
-  /conversations/group/{conversationId}/members/{userId}:
+  /wasatext/{username}/conversations/group/{conversationId}/members/{userId}:
     delete:                                                         # Si rimuove un membro dal gruppo
       operationId: removeMember
       summary: Remove a member from the group
@@ -1703,6 +1834,15 @@ paths:
       tags:
         - Group Chat
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30    
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -1741,7 +1881,7 @@ paths:
 
 
 
-  /conversations/{conversationId}/stats:
+  /wasatext/{username}/conversations/{conversationId}/stats:
     get:
       operationId: getConversationStats
       summary: Get conversation statistics
@@ -1749,6 +1889,15 @@ paths:
       tags:
         - Conversations
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30   
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -1783,8 +1932,17 @@ paths:
       # ENDPOINTS dei MESSAGGI
   ########################################      
 
-  /conversations/{conversationId}/messages:
+  /wasatext/{username}/conversations/{conversationId}/messages:
     parameters:
+      - name: username
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 3                 
+          maxLength: 30   
+          pattern: '^[a-zA-Z0-9._~-]+$'
+          description: Username of the user loggin in this session
       - name: conversationId
         in: path
         required: true
@@ -1930,8 +2088,17 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /conversations/{conversationId}/messages/{messageId}:
+  /wasatext/{username}/conversations/{conversationId}/messages/{messageId}:
     parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30  
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -2018,7 +2185,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /conversations/{conversationId}/messages/reply:
+  /wasatext/{username}/conversations/{conversationId}/messages/reply:
     post:                                                                   # Rispondere ad un messaggio
       operationId: replyToMessage
       summary: Reply to a specific message
@@ -2026,6 +2193,15 @@ paths:
       tags:
         - Messages
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30   
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -2075,7 +2251,7 @@ paths:
 
 
 
-  /conversations/{conversationId}/messages/forward:
+  /wasatext/{username}/conversations/{conversationId}/messages/forward:
     post:                                                             # Inoltrare un messaggio
       operationId: forwardMessage
       summary: Forward a message to another conversation
@@ -2083,6 +2259,15 @@ paths:
       tags:
         - Messages
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30              
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -2136,8 +2321,17 @@ paths:
   # ENDPOINTS REACTION
   #######################
 
-  /conversations/{conversationId}/messages/{messageId}/reactions:
+  /wasatext/{username}/conversations/{conversationId}/messages/{messageId}/reactions:
     parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30   
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -2257,7 +2451,17 @@ paths:
   # ENDPOINTS STATO E PROFILO UTENTE
   #####################################
 
-  /users/me:
+  /wasatext/{username}/profile:
+    parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30         
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
     get:                                                                    # Ottengo i dettagli del profilo che è loggato in questo momento
       operationId: myProfileDetails
       summary: Get current user profile
@@ -2316,7 +2520,7 @@ paths:
                 lastTimeOnline: "2025-11-05T10:12:30Z"
 
 
-  /users/search:                                          # Ricercare un utente tra tutti gli utenti registrati nella web app
+  /wasatext/{username}/users/search:                                          # Ricercare un utente tra tutti gli utenti registrati nella web app
     get:
       operationId: searchUser
       summary: Search for a user by username
@@ -2328,6 +2532,15 @@ paths:
         - Users
       parameters:
         - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30  
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
+        - name: usernameSearched
           in: query
           required: true
           schema:
@@ -2356,7 +2569,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /users/me/username:
+  /wasatext/{username}/profile/username:
     put:                                               # Modifico il mio username
       operationId: setMyUserName
       summary: Update current user's username
@@ -2368,6 +2581,16 @@ paths:
         If the username already exists, an error response is returned.
       tags:
         - Users
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
       requestBody:
         required: true
         content:
@@ -2399,7 +2622,7 @@ paths:
 
 
 
-  /users/me/photo:
+  /wasatext/{username}/profile/photo:
     put:
       operationId: setMyPhoto
       summary: Update current user's profile photo
@@ -2410,6 +2633,16 @@ paths:
         and the updated user profile is returned.
       tags:
         - Users
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30 
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
       requestBody:
         required: true
         content:
@@ -2446,7 +2679,7 @@ paths:
 
 
 
-  /users/{userId}:
+  /wasatext/{username}/users/{userId}:
     get:                                                                      # ritornare un profilo utente tramite id
       operationId: getUserProfile
       summary: Get user profile by ID
@@ -2454,6 +2687,15 @@ paths:
       tags:
         - Users
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30    
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: userId
           in: path
           required: true
@@ -2483,13 +2725,23 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /users/blocked:
+  /wasatext/{username}/users/blocked:
     get:                                                                # ritorna tutti gli Utenti bloccati dall'utente attualmente nella sessione
       operationId: allUsersBlocked
       summary: Get list of blocked users
       description: Returns the list of all users blocked by the logged in user in session
       tags:
         - Users
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30  
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
       responses:
         '200':
           description: List of blocked users
@@ -2522,8 +2774,17 @@ paths:
                     lastTimeOnline: "2025-11-04T21:05:47Z"
 
 
-  /users/{userId}/block:
+  /wasatext/{username}/users/{userId}/block:
     parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30 
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: userId
           in: path
           required: true
@@ -2566,7 +2827,7 @@ paths:
   # ALTRO
   ###########################################
 
-  /search/messages:
+  /wasatext/{username}/search/messages:
     get:                                                        # cerca un messaggio (in generale) --> trovabile in tutte le conversazioni (non una specifica)
       operationId: searchMessageGlob
       summary: Search messages across all conversations
@@ -2574,6 +2835,16 @@ paths:
       tags:
         - Search
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30 
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
+
         - name: query
           in: query
           required: true
@@ -2644,87 +2915,112 @@ paths:
                     reactions: []
 
 
-  /notifications:
-    get:                                                                # Si ottengono tutte le notifiche dell'utente nella sessione
-      operationId: allNotifications
-      summary: Get user notifications
-      description: Get list of notifications for the user (mentions, replies, new messages when offline, etc.)
-      tags:
-        - Notifications
-      parameters:
-        - name: unreadOnly                                              # le notifiche ancora NON lette
-          in: query
-          schema:
-            type: boolean
-            default: false
-          description: If true, return only unread notifications
-        - name: limit                                                   # limite di notifiche da ritornare (di default ho messo 50)
-          in: query
-          schema:
-            type: integer
-            default: 50
-          description: Number of notifications to return
-      responses:
-        '200':
-          description: List of notifications
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  notifications:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Notification"
-                  unreadCount:                                          # numero totale notifiche ancora non lette
-                    type: integer
-                    description: Total number of unread notifications
+  # /wasatext/{username}/notifications:
+  #   parameters:
+  #       - name: username
+  #         in: path
+  #         required: true
+  #         schema:
+  #           type: string
+  #           minLength: 3                 
+  #           maxLength: 30    
+  #           pattern: '^[a-zA-Z0-9._~-]+$'
+  #           description: Username of the user loggin in this session
+            
+  #   get:                                                                # Si ottengono tutte le notifiche dell'utente nella sessione
+  #     operationId: allNotifications
+  #     summary: Get user notifications
+  #     description: Get list of notifications for the user (mentions, replies, new messages when offline, etc.)
+  #     tags:
+  #       - Notifications
+  #     parameters:
+  #       - name: unreadOnly                                              # le notifiche ancora NON lette
+  #         in: query
+  #         schema:
+  #           type: boolean
+  #           default: false
+  #         description: If true, return only unread notifications
+  #       - name: limit                                                   # limite di notifiche da ritornare (di default ho messo 50)
+  #         in: query
+  #         schema:
+  #           type: integer
+  #           default: 50
+  #         description: Number of notifications to return
+  #     responses:
+  #       '200':
+  #         description: List of notifications
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 notifications:
+  #                   type: array
+  #                   items:
+  #                     $ref: "#/components/schemas/Notification"
+  #                 unreadCount:                                          # numero totale notifiche ancora non lette
+  #                   type: integer
+  #                   description: Total number of unread notifications
+  #   put:                                                              # Segno come "Letto" tutte le notifiche
+  #     operationId: readAllNotifications
+  #     summary: Mark all notifications as read
+  #     description: Mark all notifications as read
+  #     tags:
+  #       - Notifications
+  #     responses:
+  #       '204':
+  #         description: All notifications marked as read
 
 
 
 
-  /notifications/{notificationId}/read:
-    put:                                                                # Segno come "Letto" una notifica specifica
-      operationId: readNotification
-      summary: Mark notification as read
-      description: I mark a specific notification as read
-      tags:
-        - Notifications
-      parameters:
-        - name: notificationId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-            description: Unique Notification ID
-      responses:
-        '204':
-          description: Notification marked as read
-        '404':
-          description: Notification not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+  # /wasatext/{username}/notifications/{notificationId}:
+  #   put:                                                                # Segno come "Letto" una notifica specifica
+  #     operationId: readNotification
+  #     summary: Mark notification as read
+  #     description: I mark a specific notification as read
+  #     tags:
+  #       - Notifications
+  #     parameters:
+  #       - name: username
+  #         in: path
+  #         required: true
+  #         schema:
+  #           type: string
+  #           minLength: 3                 
+  #           maxLength: 30  
+  #           pattern: '^[a-zA-Z0-9._~-]+$'
+  #           description: Username of the user loggin in this session
+  #       - name: notificationId
+  #         in: path
+  #         required: true
+  #         schema:
+  #           type: string
+  #           format: uuid
+  #           description: Unique Notification ID
+  #     responses:
+  #       '204':
+  #         description: Notification marked as read
+  #       '404':
+  #         description: Notification not found
+  #         content:
+  #           application/json:
+  #             schema:
+  #               $ref: "#/components/schemas/Error"
 
 
 
-  /notifications/read_all:
-    put:                                                              # Segno come "Letto" tutte le notifiche
-      operationId: readAllNotifications
-      summary: Mark all notifications as read
-      description: Mark all notifications as read
-      tags:
-        - Notifications
-      responses:
-        '204':
-          description: All notifications marked as read
-
-
-
-  /conversations/{conversationId}/messages/{messageId}/favourite:
+  /wasatext/{username}/conversations/{conversationId}/messages/{messageId}/favourite:
     parameters:
+      - name: username
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 3                 
+          maxLength: 30 
+          pattern: '^[a-zA-Z0-9._~-]+$'
+          description: Username of the user loggin in this session
       - name: conversationId
         in: path
         required: true
@@ -2786,14 +3082,23 @@ paths:
 
 
 
-  /conversations/{conversationId}/favourites:
+  /wasatext/{username}/conversations/{conversationId}/favourites:
     get:                                                                                          # ottengo tutti i preferiti di una conversazione specifica
       operationId: getConversationFavourites
       summary: Get favourite messages in a conversation
       description: Returns all messages marked as favourite in this specific conversation
       tags:
-        - Favourites  
+        - Favourites
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30  
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
@@ -2845,7 +3150,7 @@ paths:
 
 
 
-  /favourites:
+  /wasatext/{username}/favourites:
     get:                                                                                  # Endpoint Globale --> tutti i preferiti dell'utente.
       operationId: getAllUserFavourites
       summary: Get all favourite messages across all conversations
@@ -2853,8 +3158,18 @@ paths:
         Returns all messages marked as favourite by the authenticated user,
         grouped by conversation with context information
       tags:
-        - Favourites  
+        - Favourites
       parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30    
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
+
         - name: limit
           in: query
           schema:
@@ -2901,82 +3216,3 @@ paths:
                       conversationType: "group"
                       conversationName: "Work Team"
                       conversationPhoto: "https://web-chat-app.com/groups/profile-images/work_team.jpg"
-
-
-
-  # Media e Upload
-  /media/upload:
-    post:                                                       # caricamento di un "Media File"
-      operationId: uploadMediaFile
-      summary: Upload media file (image, video, document)
-      description: |
-        Upload a media file and receive a URL to include in message content.
-        Supported formats:
-        - Images: jpg, jpeg, png, gif, webp (max 10MB)
-        - Videos: mp4, mov, avi (max 50MB)
-        - Documents: pdf, doc, docx, txt, xlsx (max 20MB)
-      tags:
-        - Media
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              description: File and file type
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: File to upload
-                fileType:
-                  type: string
-                  enum: 
-                    - image 
-                    - video
-                    - document
-                  description: Type of media being uploaded
-              required: 
-                - file 
-                - fileType
-      responses:
-        '201':
-          description: File uploaded successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                description: Url, media type, size and file name
-                properties:
-                  url:
-                    type: string
-                    format: url
-                    description: URL of uploaded file
-                  mediaType:
-                    type: string
-                    description: MIME type of the file
-                  size:
-                    type: integer
-                    description: File size in bytes
-                  filename:
-                    type: string
-                    description: Original filename
-              example:
-                url: "https://flowchatapp.com/uploads/2025/11/05/profile_picture_93a4b.png"
-                mediaType: "image/png"
-                size: 482193
-                filename: "profile_picture.png"
-        '400':
-          description: Invalid file type or size exceeds limit
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        '413':
-          description: File too large
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-                
