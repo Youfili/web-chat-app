@@ -971,7 +971,7 @@ paths:
   #######################################              
   # ENDPOINTS di Conversazioni Private.
   ########################################
-  /wasatext/{username}/conversations/private-chat:
+  /wasatext/{username}/conversations/private_chats:
     post:
       operationId: newPrivateChat
       summary: Create a new Private Chat
@@ -1040,7 +1040,7 @@ paths:
 
 
 
-  /wasatext/{username}/conversations/private-chat/{conversationId}:                   # ritorna l'id della singola "Private Chat" --> nel path
+  /wasatext/{username}/conversations/private_chats/{conversationId}:                   # ritorna l'id della singola "Private Chat" --> nel path
     parameters:                                             # definisco i parameters UNA SOLA VOLTA a livello di path --> non lo ripeto per ogni operazione
     - name: username
       in: path
@@ -1117,7 +1117,7 @@ paths:
   ########################################
   # ENDPOINTS di Conversazioni di Gruppo.
   ########################################
-  /wasatext/{username}/conversations/group:
+  /wasatext/{username}/conversations/groups:
     post:                                                   # Creo un nuovo gruppo
       operationId: createNewGroup
       summary: Create a new group Chat
@@ -1181,7 +1181,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /wasatext/{username}/conversations/group/{conversationId}:
+  /wasatext/{username}/conversations/groups/{conversationId}:
     get:                                                      # ottengo una conversazione di Gruppo specifica in base all'id
       operationId: getGroupChat
       summary: Get a specific group Chat
@@ -1246,7 +1246,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /wasatext/{username}/conversations/group/{conversationId}/members:
+  /wasatext/{username}/conversations/groups/{conversationId}/members:
     post:                                                     # Aggiungo un Membro al Gruppo
       operationId: addToGroup
       summary: Add members to a group
@@ -1328,7 +1328,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /wasatext/{username}/conversations/group/{conversationId}/leave:
+  /wasatext/{username}/conversations/groups/{conversationId}/leave:
     post:
       operationId: leaveGroup
       summary: Leave a group Chat
@@ -1370,7 +1370,7 @@ paths:
 
 
 
-  /wasatext/{username}/conversations/group/{conversationId}/admins:
+  /wasatext/{username}/conversations/groups/{conversationId}/admins:
     post:                                                           # Rendere Admin un membro del gruppo
       operationId: makeAdmin
       summary: Make a user an admin of the group
@@ -1454,7 +1454,7 @@ paths:
 
 
 
-  /wasatext/{username}/conversations/group/{conversationId}/admins/{usernameAdmin}:
+  /wasatext/{username}/conversations/groups/{conversationId}/admins/{usernameAdmin}:
     delete:                                                                   # Rimuovo lo stato di Admin da un membro del gruppo
       operationId: removeAdminStatus
       summary: Remove admin status from a user
@@ -1587,7 +1587,7 @@ paths:
 
 
 
-  /wasatext/{username}/conversations/group/{conversationId}/name:
+  /wasatext/{username}/conversations/groups/{conversationId}/name:
     put:                                                              # modifico nome  gruppo
       operationId: setGroupName
       summary: Update group name
@@ -1672,7 +1672,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /wasatext/{username}/conversations/group/{conversationId}/description:                                  # modifico la descrizione del gruppo
+  /wasatext/{username}/conversations/groups/{conversationId}/description:                                  # modifico la descrizione del gruppo
     put:
       operationId: setGroupDescription
       summary: Update group description
@@ -1750,7 +1750,7 @@ paths:
 
 
 
-  /wasatext/{username}/conversations/group/{conversationId}/photo:                              # modifico la foto del gruppo
+  /wasatext/{username}/conversations/groups/{conversationId}/photo:                              # modifico la foto del gruppo
     put:
       operationId: setGroupPhoto
       summary: Update group photo
@@ -1826,7 +1826,7 @@ paths:
 
 
 
-  /wasatext/{username}/conversations/group/{conversationId}/members/{userId}:
+  /wasatext/{username}/conversations/groups/{conversationId}/members/{userId}:
     delete:                                                         # Si rimuove un membro dal gruppo
       operationId: removeMember
       summary: Remove a member from the group
