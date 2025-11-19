@@ -809,7 +809,7 @@ paths:
       operationId: getMyConversations
       summary: Get all conversations for the authenticated user
       description: |-
-        Returns all conversations (single and group) ordered by last message 
+        Returns all conversations (private chat and group chat) ordered by last message 
         timestamp (most recent first)
       tags:
         - Conversations
@@ -871,7 +871,7 @@ paths:
     get:
       operationId: getConversation
       summary: Search conversations by name
-      description: Search for conversations (single or group) by name. Group names can contain emojis, usernames cannot.
+      description: Search for conversations (private chat or group chat) by name. Group names can contain emojis, usernames cannot.
       tags:
         - Conversations
       parameters:
@@ -891,7 +891,7 @@ paths:
             application/json:
               schema:
                 type: object
-                description: My Conversations (Single or Group)
+                description: My Conversations (private chat or group chat)
                 properties:
                   conversations:
                     type: array
@@ -903,7 +903,7 @@ paths:
                     maxItems: 5000                                 # al massimo un risultato della richiesta per una conversazione con un nome specifico (possono esistere conversazioni di Gruppo con Stesso Nome!)
                     description: Conversations returned
               example:
-                conversations:                                  # Array di conversazioni (Single o Group)
+                conversations:                                  # Array di conversazioni (entrambe)
                   # Caso Esempio Private Chat
                   - id: "a12f45b0-67c3-4b2f-9a8d-4a9824b1c0d1"
                     recipientUser:
@@ -950,7 +950,7 @@ paths:
   #######################################              
   # ENDPOINTS di Conversazioni Singole.
   ########################################
-  /conversations/single:
+  /conversations/private-chat:
     post:
       operationId: newPrivateChat
       summary: Create a new Private Chat
@@ -1009,7 +1009,7 @@ paths:
 
 
 
-  /conversations/single/{conversationId}:                   # ritorna l'id della singola "Conversazione Singola" --> nel path
+  /conversations/private-chat/{conversationId}:                   # ritorna l'id della singola "Private Chat" --> nel path
     parameters:                                             # definisco i parameters UNA SOLA VOLTA a livello di path --> non lo ripeto per ogni operazione
     - name: conversationId
       in: path
