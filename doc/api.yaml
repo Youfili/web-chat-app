@@ -1,6 +1,6 @@
 openapi: 3.0.4
 info:
-  title: FlowChat
+  title: WASAtext
   description:  API Web Chat App, University project
   version: 1.0.0
   
@@ -8,15 +8,18 @@ servers:
   - url: https://api.web-chat-app.com/v1
     description: Web Chat Application API Description
 
+security:
+  - bearerAuth: []
+
 tags:
   - name: Users
     description: User management, search, and blocking
   - name: Conversations
     description: General conversation operations
-  - name: Single Conversations
+  - name: Private Chat
     description: One-to-one conversation management
-  - name: Group Conversations
-    description: Group conversation management and administration
+  - name: Group Chat
+    description: Group Chat management and administration
   - name: Messages
     description: Message operations (send, edit, delete, reply, forward)
   - name: Reactions
@@ -31,6 +34,14 @@ tags:
     description: Favourite messages management
 
 components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login
+
   schemas:  
     
     User:
@@ -48,16 +59,16 @@ components:
           example: steph_curry
           pattern: '^[A-Za-z0-9_]+$'
           description: Unique username; only letters, numbers and underscore
+        profilePhoto:
+          type: string
+          format: url                               # Url dell'immagine
+          description: URL User profile photo
         status:
           type: string 
           maxLength: 200
           description: User Status
           #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji                  
           example: "Available, write to me! :)"
-        profilePhoto:
-          type: string
-          format: url                               # Url dell'immagine
-          description: URL User profile photo
         dtRegistration:                            # Creato quando lo creo come nuovo utente 
           type: string
           format: date-time
@@ -74,47 +85,10 @@ components:
         - lastTimeOnline
 
 
-    newUser:
+  
+    GroupChat:
       type: object
-      description: Representation of a New User in the system.
-      properties:
-        username:
-          type: string
-          minLength: 3
-          maxLength: 30
-          example: steph_curry
-          pattern: '^[A-Za-z0-9_]+$'
-          description: Unique username; only letters, numbers and underscore
-        status:
-          type: string 
-          maxLength: 200
-          description: User Status
-          #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji                  
-          example: "Available, write to me! :)"
-        profilePhoto:
-          type: string
-          format: url                               # Url dell'immagine
-          description: URL User profile photo
-        dtRegistration:                            # Creato quando lo creo come nuovo utente 
-          type: string
-          format: date-time
-          description: Account creation Date-Time (UTC)
-        lastTimeOnline:
-          type: string
-          format: date-time
-          description:  User Last Access on the App (UTC)
-      required:
-        - username
-        - profilePhoto
-        - status
-        - lastTimeOnline
-
-
-
-
-    GroupConversation:
-      type: object
-      description: Representation of a Group Conversation
+      description: Representation of a Group Chat
       properties:
         id:
           type: string
@@ -167,16 +141,16 @@ components:
         dtLastMessage:
           type: string
           format: date-time
-          description: date and time of the last message in a Group Conversation
+          description: date and time of the last message in a Group Chat
       required: 
         - groupName
         - members
         - dtCreated
 
 
-    NewGroupConversation:
+    NewGroupChat:
       type: object
-      description: Representation of a NEW Group Conversation
+      description: Representation of a NEW Group Chat
       properties:
         groupName:
           type: string
@@ -205,14 +179,14 @@ components:
         - members
         
 
-    SingleConversation:
+    PrivateChat:
       type: object
-      description: Representation of a Single Conversation
+      description: Representation of a Private Chat
       properties:
         id:
           type: string
           format: uuid
-          description: Unique Single Conversation Id
+          description: Unique Private Chat Id
         recipientUser:
           $ref: "#/components/schemas/User"
         snippet:              # anteprima
@@ -220,7 +194,7 @@ components:
           maxLength: 300
           #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji  
           example: "Yeah, I want to talk about..."
-          description: Single Conversation snippet
+          description: Private Chat snippet
         dtLastMessage:
           type: string
           format: date-time
@@ -234,9 +208,9 @@ components:
         - recipientUser
 
 
-    NewSingleConversation:
+    NewPrivateChat:
       type: object
-      description:  Representation of a NEW Single Conversation
+      description:  Representation of a NEW Private Chat
       properties:
         recipientUserUsername:
           type: string
@@ -288,7 +262,10 @@ components:
           description: User ID who sent the message
         senderUsername:
           type: string
-          description: User who sent the message
+          minLength: 3
+          maxLength: 30
+          pattern: '^[A-Za-z0-9_]+$'
+          description: Username of user who sent
         # deleted:
         #   type: boolean
         #   default: false
@@ -432,8 +409,9 @@ components:
           description: Reaction ID
         emoji:
           type: string
-          #pattern:                            # Gestire questo pattern nel backend
-          description: Emoji reaction
+          minLength: 1
+          maxLength: 20  # Permette emoji composte 
+          description: Emoji reaction (single or composite emoji)
         timestamp:
           type: string
           format: date-time
@@ -464,8 +442,9 @@ components:
       properties:
         emoji:
           type: string
-          #pattern:                            # Gestire questo pattern nel backend
-          description: Emoji reaction
+          minLength: 1
+          maxLength: 20  # Permette emoji composte 
+          description: Emoji reaction (single or composite emoji)
         timestamp:
           type: string
           format: date-time
@@ -531,6 +510,7 @@ components:
           $ref: "#/components/schemas/Message"
         conversationInfo:
           type: object
+          description: Context information about the conversation
           properties:
             conversationId:
               type: string
@@ -544,7 +524,9 @@ components:
               description: Type of conversation in which the message added to favorites is located
             conversationName:
               type: string
-              description: Username for single conversations, group name for groups
+              minLength: 1
+              maxLength: 200
+              description: Username for Private Chats, group name for groups
             conversationPhoto:
               type: string
               format: url
@@ -591,9 +573,13 @@ components:
           description: Type of notification
         title:
           type: string
+          minLength: 1
+          maxLength: 200
           description: Notification title
         body:
           type: string
+          minLength: 1
+          maxLength: 500
           description: Notification body text
         relatedUserId:
           type: string
@@ -615,9 +601,6 @@ components:
           type: boolean
           default: false
           description: Indicates whether the notification has been read or not
-        data:
-          type: object
-          description: Additional notification-specific data
       required: 
         - id
         - notificationType
@@ -667,13 +650,16 @@ components:
           properties:
             images:
               type: integer
-              description: Images
+              minimum: 0
+              description: Number of Images
             videos:
               type: integer
-              description: Video
+              minimum: 0
+              description: Number of videos
             documents:
               type: integer
-              description: Documents
+              minimum: 0
+              description: Number of documents
 
     Error:
       type: object
@@ -681,12 +667,18 @@ components:
       properties:
         error:
           type: string
+          minLength: 1
+          maxLength: 200
           description: Error message
         code:
           type: string
+          minLength: 1
+          maxLength: 50
           description: Error code
         details:
           type: string
+          minLength: 0
+          maxLength: 500
           description: Additional error details
       required: 
         - error
@@ -698,6 +690,7 @@ paths:
   /session:
     post:
       operationId: doLogin
+      security: []
       tags: ["login"]
       summary: Logs in the user
       description: |-
@@ -737,6 +730,7 @@ paths:
   /register:                                                                                  # Registrare un nuovo utente
     post:
       operationId: registerUser
+      security: []
       tags: ["Users"]
       summary: Register a new user
       description: |-
@@ -832,8 +826,8 @@ paths:
                     type: array
                     items:
                       oneOf:
-                        - $ref: "#/components/schemas/SingleConversation"
-                        - $ref: "#/components/schemas/GroupConversation"  
+                        - $ref: "#/components/schemas/PrivateChat"
+                        - $ref: "#/components/schemas/GroupChat"  
                     minItems: 0
                     maxItems: 5000          # al massimo 5000 conversazioni può avere l'utente loggato in sessione
                     description: All the conversations of the user in session
@@ -846,6 +840,7 @@ paths:
                       username: "martina_02"
                       profilePhoto: "https://web-chat-app.com/profile-images/martina.jpg"
                       status: "online"
+                      lastTimeOnline: "2025-11-09T10:30:00Z"
                     snippet: "Hey, how’s everything going?"
                     dtLastMessage: "2025-11-06T13:45:12Z"
                     userPhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
@@ -861,10 +856,12 @@ paths:
                         username: "martina_02"
                         profilePhoto: "https://cdn.web-chat-app.com/users/martina.jpg"
                         status: "online"
+                        lastTimeOnline: "2025-11-09T10:30:00Z"
                       - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                         username: "fil_dev"
                         profilePhoto: "https://cdn.web-chat-app.com/users/filippo.jpg"
                         status: "offline"
+                        lastTimeOnline: "2025-11-09T10:30:00Z"
                     admins:
                       - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                     dtCreated: "2025-09-01T18:00:00Z"
@@ -900,27 +897,27 @@ paths:
                     type: array
                     items:
                       oneOf:
-                        - $ref: "#/components/schemas/SingleConversation"
-                        - $ref: "#/components/schemas/GroupConversation"
+                        - $ref: "#/components/schemas/PrivateChat"
+                        - $ref: "#/components/schemas/GroupChat"
                     minItems: 0
                     maxItems: 5000                                 # al massimo un risultato della richiesta per una conversazione con un nome specifico (possono esistere conversazioni di Gruppo con Stesso Nome!)
                     description: Conversations returned
               example:
                 conversations:                                  # Array di conversazioni (Single o Group)
-                  # Caso Esempio Single Conversation
+                  # Caso Esempio Private Chat
                   - id: "a12f45b0-67c3-4b2f-9a8d-4a9824b1c0d1"
                     recipientUser:
                       id: "d27e91a2-4f51-4a89-9e33-1efbc6b38e92"
                       username: "marta_22"
-                      status: "Just chilling..."
                       profilePhoto: "https://web-chat-app.com/users/progile-images/marta_22.png"
+                      status: "Just chilling..."
                       dtRegistration: "2024-04-12T09:30:00Z"
                       lastTimeOnline: "2025-11-05T10:14:00Z"
                     snippet: "See you later!"
                     dtLastMessage: "2025-11-05T09:50:12Z"
                     userPhoto: "https://web-chat-app.com/images/marta_22.png"
         
-                  # Caso Esempio Group Conversation
+                  # Caso Esempio Group Chat
                   - id: "b78e34c1-92de-412f-83f1-8a0e2327c7a4"
                     groupName: "WASA Programmers"
                     groupDescription: "A group for Wasa lovers and learners"
@@ -930,14 +927,14 @@ paths:
                     members:
                       - id: "e91b8a23-8d0f-4e2d-a4e1-7c6c34b7f345"
                         username: "LebronJames"
-                        status: "Working on a new feature"
                         profilePhoto: "https://web-chat-app.com/users/profile-images/lebronJames.png"
+                        status: "Working on a new feature"
                         dtRegistration: "2023-06-01T11:40:00Z"
                         lastTimeOnline: "2025-11-05T10:00:00Z"
                       - id: "f01c32a2-9e56-44f1-b8b1-0a78b2d543f1"
                         username: "alice_code"
-                        status: "Debugging my brain :("
                         profilePhoto: "https://web-chat-app.com/users/profile-images/alice_code.png"
+                        status: "Debugging my brain :("
                         dtRegistration: "2024-02-20T13:00:00Z"
                         lastTimeOnline: "2025-11-05T09:55:00Z"
                     admins:
@@ -955,31 +952,31 @@ paths:
   ########################################
   /conversations/single:
     post:
-      operationId: newSingleConversation
-      summary: Create a new single conversation
-      description: Creates a new single conversation with initial message. If conversation already exists, returns existing conversation.
+      operationId: newPrivateChat
+      summary: Create a new Private Chat
+      description: Creates a new Private Chat with initial message. If conversation already exists, returns existing conversation.
       tags:
-        - Single Conversations
+        - Private Chats
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/NewSingleConversation"
+              $ref: "#/components/schemas/NewPrivateChat"
       responses:
         '201':
           description: Conversation created successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SingleConversation"
+                $ref: "#/components/schemas/PrivateChat"
               example:
                 id: "8d33c2d4-61f0-4a5a-a90f-7c15fd7c02d1"                                  #ID generato per questa nuova conversazione Singola
                 recipientUser:
                   id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                   username: "martina_02"
-                  status: "online"
                   profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
+                  status: "online"
                   dtRegistration: "2024-02-20T13:00:00Z"
                   lastTimeOnline: "2025-11-05T09:55:00Z"
                 snippet: "Hey, how are you doing?"
@@ -990,14 +987,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SingleConversation"
+                $ref: "#/components/schemas/PrivateChat"
               example:
                 id: "7e2f13e0-8d9f-4df8-b1a1-4a56e6b943b2"
                 recipientUser:
                   id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                   username: "martina_02"
-                  status: "online"
                   profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
+                  status: "online"
                   dtRegistration: "2024-02-20T13:00:00Z"
                   lastTimeOnline: "2025-11-05T09:55:00Z"
                 snippet: "See you tomorrow!"
@@ -1024,25 +1021,25 @@ paths:
         description: Unique Conversation ID
 
     get:
-      operationId: getSingleConversationById
-      summary: Get a specific single conversation
-      description: Get a specific single conversation by id
+      operationId: getPrivateChatById
+      summary: Get a specific Private Chat
+      description: Get a specific Private Chat by id
       tags:
-        - Single Conversations
+        - Private Chats
       responses:
         '200':
           description: Conversation details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SingleConversation"
+                $ref: "#/components/schemas/PrivateChat"
               example:
                 id: "7e2f13e0-8d9f-4df8-b1a1-4a56e6b943b2"
                 recipientUser:
                   id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                   username: "martina_02"
-                  status: "online"
                   profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
+                  status: "online"
                   dtRegistration: "2024-02-20T13:00:00Z"
                   lastTimeOnline: "2025-11-05T09:55:00Z"
                 snippet: "Sure, let's meet at 6 PM!"
@@ -1056,11 +1053,11 @@ paths:
                 $ref: "#/components/schemas/Error"
 
     delete:                                                 # elimino la mia conversazione singola (con un altro utente)
-      operationId: deleteSingleConversation
-      summary: Delete a single conversation
+      operationId: deletePrivateChat
+      summary: Delete a Private Chat
       description: Deletes the conversation for the authenticated user
       tags:
-        - Single Conversations
+        - Private Chats
       responses:
         '204':
           description: Conversation deleted successfully
@@ -1083,23 +1080,23 @@ paths:
   /conversations/group:
     post:                                                   # Creo un nuovo gruppo
       operationId: createNewGroup
-      summary: Create a new group conversation
-      description: A new group conversation is created
+      summary: Create a new group Chat
+      description: A new group Chat is created
       tags:
-        - Group Conversations
+        - Group Chat
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/NewGroupConversation"
+              $ref: "#/components/schemas/NewGroupChat"
       responses:
         '201':
           description: Group created successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GroupConversation"
+                $ref: "#/components/schemas/GroupChat"
               example:
                 id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
                 groupName: "BestShooters"
@@ -1110,14 +1107,17 @@ paths:
                     username: "fil_dev"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                     username: "martina_02"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
                     username: "leo_snk"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
                     status: "offline"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
                   - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                 dtCreated: "2025-11-06T15:09:58Z"
@@ -1133,11 +1133,11 @@ paths:
 
   /conversations/group/{conversationId}:
     get:                                                      # ottengo una conversazione di Gruppo specifica in base all'id
-      operationId: getGroupConversation
-      summary: Get a specific group conversation
-      description: Returns a specific group (group conversation)
+      operationId: getGroupChat
+      summary: Get a specific group Chat
+      description: Returns a specific group (group Chat)
       tags:
-        - Group Conversations
+        - Group Chats
       parameters:
         - name: conversationId
           in: path
@@ -1148,11 +1148,11 @@ paths:
             description: Unique Conversation Group Id
       responses:
         '200':
-          description: Group conversation details
+          description: Group Chat details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GroupConversation"
+                $ref: "#/components/schemas/GroupChat"
               example:
                 id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
                 groupName: "BestShooters"
@@ -1163,14 +1163,17 @@ paths:
                     username: "fil_dev"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                     username: "martina_02"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
                     username: "leo_snk"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
                     status: "offline"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
                   - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                 dtCreated: "2025-11-06T15:09:58Z"
@@ -1190,7 +1193,7 @@ paths:
       summary: Add members to a group
       description: Only group admins can add new members
       tags: 
-        - Group Conversations
+        - Group Chats
       parameters:
         - name: conversationId
           in: path
@@ -1211,7 +1214,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GroupConversation"
+                $ref: "#/components/schemas/GroupChat"
               example:
                 id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
                 groupName: "BestShooters"
@@ -1222,18 +1225,22 @@ paths:
                     username: "fil_dev"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                     username: "martina_02"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
                     username: "leo_snk"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
                     status: "offline"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
                     username: "giulia_m"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
                   - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                 dtCreated: "2025-11-06T15:09:58Z"
@@ -1256,10 +1263,10 @@ paths:
   /conversations/group/{conversationId}/leave:
     post:
       operationId: leaveGroup
-      summary: Leave a group conversation
+      summary: Leave a group Chat
       description: Remove yourself from the group. If you were an admin, admin status is also removed.
       tags:
-        - Group Conversations
+        - Group Chats
       parameters:
         - name: conversationId
           in: path
@@ -1292,7 +1299,7 @@ paths:
       summary: Make a user an admin of the group
       description: Only existing admins can promote other members to admin
       tags:
-        - Group Conversations
+        - Group Chats
       parameters:
         - name: conversationId
           in: path
@@ -1313,7 +1320,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GroupConversation"
+                $ref: "#/components/schemas/GroupChat"
               example:
                 id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
                 groupName: "BestShooters"
@@ -1324,18 +1331,22 @@ paths:
                     username: "fil_dev"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                     username: "martina_02"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
                     username: "leo_snk"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
                     status: "offline"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
                     username: "giulia_m"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
                   - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"   # Filippo (admin originario)
                   - "c5b9289e-cc09-4c32-9b5f-12629faecb8d"   # Martina (nuova admin)
@@ -1363,7 +1374,7 @@ paths:
       summary: Remove admin status from a user
       description: Only admins can remove admin status from other admins
       tags:
-        - Group Conversations
+        - Group Chats
       parameters:
         - name: conversationId
           in: path
@@ -1386,7 +1397,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GroupConversation"
+                $ref: "#/components/schemas/GroupChat"
               example:
                 id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
                 groupName: "BestShooters"
@@ -1397,18 +1408,22 @@ paths:
                     username: "fil_dev"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                     username: "martina_02"
-                    photo: "https://web-chat-app.com/users/profile-images/martina.jpg"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
                     username: "leo_snk"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
                     status: "offline"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
                     username: "giulia_m"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
                   - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"   
                 dtCreated: "2025-11-06T15:09:58Z"
@@ -1474,7 +1489,7 @@ paths:
       summary: Update group name
       description: Only group admins can update group information
       tags:
-        - Group Conversations
+        - Group Chats
       parameters:
         - name: conversationId
           in: path
@@ -1502,7 +1517,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GroupConversation"
+                $ref: "#/components/schemas/GroupChat"
               example:
                 id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
                 groupName: "BestShooters"
@@ -1511,20 +1526,24 @@ paths:
                 members:
                   - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                     username: "fil_dev"
-                    photo: "https://web-chat-app.com/users/profile-images/filippo.jpg"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                     username: "martina_02"
-                    photo: "https://web-chat-app.com/users/profile-images/martina.jpg"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
                     username: "leo_snk"
-                    photo: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
                     status: "offline"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
                     username: "giulia_m"
-                    photo: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
+                    profilePhoto: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
                   - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"   
                   - "c5b9289e-cc09-4c32-9b5f-12629faecb8d"   
@@ -1546,7 +1565,7 @@ paths:
       summary: Update group description
       description: Only group admins can update the group description
       tags:
-        - Group Conversations
+        - Group Chats
       parameters:
         - name: conversationId
           in: path
@@ -1576,7 +1595,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GroupConversation"
+                $ref: "#/components/schemas/GroupChat"
               example:
                 id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
                 groupName: "BestShooters"
@@ -1587,6 +1606,7 @@ paths:
                     username: "fil_dev"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
                   - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                 dtCreated: "2025-11-06T15:09:58Z"
@@ -1614,7 +1634,7 @@ paths:
       summary: Update group photo
       description: Only group admins can update the group photo
       tags:
-        - Group Conversations
+        - Group Chats
       parameters:
         - name: conversationId
           in: path
@@ -1622,7 +1642,7 @@ paths:
           schema:
             type: string
             format: uuid
-            description: Unique Group Conversation Id
+            description: Unique Group Chat Id
       requestBody:
         required: true
         content:
@@ -1642,7 +1662,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GroupConversation"
+                $ref: "#/components/schemas/GroupChat"
               example:
                 id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
                 groupName: "BestShooters"
@@ -1653,6 +1673,7 @@ paths:
                     username: "fil_dev"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
                     status: "online"
+                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
                   - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                 dtCreated: "2025-11-06T15:09:58Z"
@@ -1680,7 +1701,7 @@ paths:
       summary: Remove a member from the group
       description: Only admins can remove members. Admins cannot be removed, they must be demoted first.
       tags:
-        - Group Conversations
+        - Group Chat
       parameters:
         - name: conversationId
           in: path
@@ -1818,7 +1839,6 @@ paths:
                     senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
                     senderUsername: "matthew"
                     # deleted: false
-                    replyToMessageId: null
                     forwarded: false
                     reactions:
                       - emoji: "🔥"
@@ -1848,7 +1868,6 @@ paths:
                     senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
                     senderUsername: "matthew"
                     # deleted: false
-                    replyToMessageId: null
                     forwarded: true
                     reactions: []
                 hasMore: true # esiston messaggi più vecchi che possono essere caricati con una altra chiama "?before="
@@ -1901,7 +1920,6 @@ paths:
                 senderUserId: "9f2b3a17-4c9d-45b8-bc73-f4c0a9baf219"
                 senderUsername: "filippo"
                 # deleted: false
-                replyToMessageId: null
                 forwarded: false
                 reactions: []
         '403':
@@ -1957,7 +1975,6 @@ paths:
                 senderUserId: "9f2b3a17-4c9d-45b8-bc73-f4c0a9baf219"
                 senderUsername: "filippo"
                 # deleted: false
-                replyToMessageId: null
                 forwarded: false
                 reactions:
                   - emoji: "👍"
@@ -2096,7 +2113,6 @@ paths:
                 contentMess: "📸 Check out this photo! (forwarded)"
                 senderUsername: "filippo21"
                 # deleted: false
-                replyToMessageId: null
                 forwarded: true
                 reactions: []
         '403':
@@ -2160,7 +2176,7 @@ paths:
                 reactionId: "a4c1d2e3-f567-8901-2345-6789abcdef01"              ## id univoco reaction
                 emoji: "🔥"                                                     ## emoji che rappresenta la reazione aggiunta
                 timestamp: "2025-11-05T14:22:31Z"                               ## momento esatto (in UTC) in cui la reazione è stata aggiunta.
-                messageIdReaction: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
+                messToReactId: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
                 senderUserId: "9b5e7d1c-8a6f-4e0d-b2c7-1d9e8e3f1234"            ## UUID utente che ha reagito
                 senderUsername: "filippo_dev"                                   ## nome utente che ha reagito
         '400':
@@ -2220,19 +2236,19 @@ paths:
                   - reactionId: "c1f3a7d2-4b9e-4568-8e23-7890abcd1234"
                     emoji: "❤️"
                     timestamp: "2025-11-05T10:12:45Z"
-                    messageIdReaction: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
+                    messToReactId: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
                     senderUserId: "b7e9d5c2-1a4f-4b21-8f9b-6c1e7a8b9e01"
                     senderUsername: "martina_98"
                   - reactionId: "f9b8a2e4-7c65-4a91-b302-3456def789ab"
                     emoji: "😂"
                     timestamp: "2025-11-05T10:14:02Z"
-                    messageIdReaction: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
+                    messToReactId: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
                     senderUserId: "d3a1e4b7-8c9f-4e21-9a3d-5b6e8f7a0c12"
                     senderUsername: "luca_dev"
                   - reactionId: "a2d9b7e3-c456-4f8a-b321-9e0a1b2c3d45"
                     emoji: "🔥"
                     timestamp: "2025-11-05T10:15:18Z"
-                    messageIdReaction: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
+                    messToReactId: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
                     senderUserId: "9b5e7d1c-8a6f-4e0d-b2c7-1d9e8e3f1234"
                     senderUsername: "filippo_dev"
 
@@ -2258,8 +2274,8 @@ paths:
               example:
                 id: "f2a1b7d4-9c5e-4b2e-a6d3-8e1a9c7d5b22"
                 username: "filippo_dev"
-                status: "Coding some new features 🚀"
                 profilePhoto: "https://web-chat-app.com/users/profile-images/filippo_dev.jpg"
+                status: "Coding some new features 🚀"
                 dtRegistration: "2024-03-12T14:25:47Z"
                 lastTimeOnline: "2025-11-05T09:42:10Z"
 
@@ -2294,8 +2310,8 @@ paths:
               example:
                 id: "9e7f5a61-8b24-4c2a-bb5a-1b1e2b6e91cd"
                 username: "filippo_dev"
-                status: "Taking a coffee break ☕"
                 profilePhoto: "https://web-chat-app.com/users/profile-images/filippo_dev_new.jpg"
+                status: "Taking a coffee break ☕"
                 dtRegistration: "2024-03-12T14:25:47Z"
                 lastTimeOnline: "2025-11-05T10:12:30Z"
 
@@ -2329,8 +2345,8 @@ paths:
               example:
                 id: "550e8400-e29b-41d4-a716-446655440000"
                 username: "steph_curry"
-                status: "Available, write to me! :)"
                 profilePhoto: "https://web-chat-app.com/users/profile-images/steph_curry.png"
+                status: "Available, write to me! :)"
                 dtRegistration: "2024-11-02T14:25:30Z"
                 lastTimeOnline: "2025-11-05T09:48:10Z"
         '404':
@@ -2369,8 +2385,8 @@ paths:
               example:
                 id: "550e8400-e29b-41d4-a716-446655440000"
                 username: "Ryan_Ted"
-                status: "Focused on this project :)"
                 profilePhoto: "https://web-chat-app.com/users/profile-images/ryan_ted.png"
+                status: "Focused on this project :)"
                 dtRegistration: "2024-11-02T14:25:30Z"
                 lastTimeOnline: "2025-11-05T10:12:45Z"
 
@@ -2417,8 +2433,8 @@ paths:
               example:
                 id: "550e8400-e29b-41d4-a716-446655440000"
                 username: "filippo_dev"
-                status: "Focused on this project :)"
                 profilePhoto: "https://web-chat-app.com/users/profile-images/filippo_new_photo.png"
+                status: "Focused on this project :)"
                 dtRegistration: "2024-11-02T14:25:30Z"
                 lastTimeOnline: "2025-11-10T10:30:15Z"
         '400':
@@ -2455,8 +2471,8 @@ paths:
               example:
                 id: "9e7f5a61-8b24-4c2a-bb5a-1b1e2b6e91cd"
                 username: "filippo_dev"
-                status: "Taking a coffee break ☕"
                 profilePhoto: "https://web-chat-app.com/users/profile-images/filippo_dev_new.jpg"
+                status: "Taking a coffee break ☕"
                 dtRegistration: "2024-03-12T14:25:47Z"
                 lastTimeOnline: "2025-11-05T10:12:30Z"
         '404':
@@ -2493,15 +2509,15 @@ paths:
                 blockedUsers:
                   - id: "b4a2f891-39a5-4c7d-92e4-3f7b52baf041"
                     username: "marco_92"
-                    status: "Can't message me right now 🚫"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/marco_92.jpg"
+                    status: "Can't message me right now 🚫"
                     dtRegistration: "2023-10-15T09:45:21Z"
                     lastTimeOnline: "2025-11-05T08:30:10Z"
 
                   - id: "e2f1c3d7-7b22-48cc-bd24-b7e8c4b91e2a"
                     username: "sara_tech"
-                    status: "Living offline 🌿"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/sara_tech.png"
+                    status: "Living offline 🌿"
                     dtRegistration: "2024-01-27T17:20:02Z"
                     lastTimeOnline: "2025-11-04T21:05:47Z"
 
@@ -2606,13 +2622,12 @@ paths:
                     senderUserId: "a123e456-789b-12d3-a456-426614174000"
                     senderUsername: "filippo98"
                     # deleted: false
-                    replyToMessageId: null
                     forwarded: false
                     reactions:
                       - reactionId: "0f18b98a-6f1c-4c3b-9e89-9cfb3bfe6423"
                         emoji: "👍"
                         timestamp: "2025-11-05T09:26:01Z"
-                        messageIdReaction: "1b3dt48a-3d1e-3v6d-9w89-9cer3rth6423"
+                        messToReactId: "1b3dt48a-3d1e-3v6d-9w89-9cer3rth6423"
                         senderUserId: "7b5e6d33-4f91-44fa-b15c-217d8c3fbd28"
                         senderUsername: "marco_92"
 
@@ -2819,7 +2834,6 @@ paths:
                     senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
                     senderUsername: "matthew"
                     forwarded: false
-                    replyToMessageId: null
                     reactions: []
         '403':
           description: User is not part of this conversation
@@ -2880,7 +2894,6 @@ paths:
                       conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
                       senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
                       senderUsername: "marco_dev"
-                      replyToMessageId: null
                       forwarded: false
                       reactions: []
                     conversationInfo:
@@ -2966,5 +2979,4 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-
-
+                
