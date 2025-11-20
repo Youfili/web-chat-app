@@ -2,7 +2,7 @@ openapi: 3.0.4
 info:
   title: WASAtext
   description:  API Web Chat App, University project
-  version: 1.0.0
+  version: 1.1.0
   
 servers:
   - url: https://api.web-chat-app.com/v1
@@ -13,7 +13,7 @@ security:
 
 tags:
   - name: Users
-    description: User management, search, and blocking
+    description: User management, search
   - name: Conversations
     description: General conversation operations
   - name: Private Chat
@@ -21,13 +21,9 @@ tags:
   - name: Group Chat
     description: Group Chat management and administration
   - name: Messages
-    description: Message operations (send, edit, delete, reply, forward)
+    description: Message operations (send, edit, delete, forward)
   - name: Reactions
     description: Message reaction operations
-  # - name: Notifications
-  #   description: User notification management
-  - name: Search
-    description: Search functionality across messages and conversations
   - name: Favourites
     description: Favourite messages management
 
@@ -83,6 +79,29 @@ components:
         - lastTimeOnline
 
 
+    UserSummary:
+      type: object
+      description: A lightweight representation of a user (for lists and members)
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique user id
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+          pattern: '^[a-zA-Z0-9._~-]+$'
+          description: User username
+        profilePhoto:
+          type: string
+          format: url
+          description: URL User profile photo
+      required:
+        - id
+        - username
+        - profilePhoto
+
   
     GroupChat:
       type: object
@@ -111,12 +130,14 @@ components:
           format: url
           description: Group photo
         members:
-          description: List of users participating in the group
           type: array
           items:
-            $ref: "#/components/schemas/User"     
-          minItems: 1
-          maxItems: 300  
+            type: string
+            format: uuid
+            description: Id user of member  to add      # passo gli id, poi gestisco lato server
+          minItems: 1                                   # almeno un utente deve essere unito al gruppo (quando creato)
+          maxItems: 300
+          description: Group members  
         admins:
           description: List of admin users in the group
           type: array
@@ -169,7 +190,7 @@ components:
             minLength: 3
             maxLength: 30
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of member to add
+            description: Username of user who sent
           minItems: 1                                   # almeno un utente deve essere unito al gruppo (quando creato)
           maxItems: 300
           description: Group members
@@ -211,19 +232,19 @@ components:
       type: object
       description:  Representation of a NEW Private Chat
       properties:
-        recipientUserUsername:
+        recipientUsername:
           type: string
           minLength: 3
           maxLength: 30
           pattern: '^[a-zA-Z0-9._~-]+$'
-          description: recipient username
+          description: Username of user who sent
         initialMessage:
           type: string
           minLength: 1
           maxLength: 5000
           description: First message to send in the conversation
       required: 
-        - recipientUserUsername
+        - recipientUsername
         - initialMessage
 
 
@@ -248,7 +269,6 @@ components:
         statusInfo:
           type: string
           enum:
-            - sent
             - delivered
             - read
           description: Message status
@@ -266,14 +286,7 @@ components:
           maxLength: 30
           pattern: '^[a-zA-Z0-9._~-]+$'
           description: Username of user who sent
-        # deleted:
-        #   type: boolean
-        #   default: false
-        #   description: Indicates whether a message has been deleted
-        replyToMessageId:                 # id del messaggio a cui questo messaggio risponde (risposta intesa come feature specifica)
-          type: string
-          format: uuid
-          description: ID of the message this is replying to (if any)
+          readOnly: true    # lo gestisco lato server, altrimenti se l'utente cambia nome, devo aggiornare tutti i messaggi precedenti --> l'username me lo ricavo lato server (dal DB)
         forwarded:                        # Indica se il messaggio è stato inoltrato da qualche altra chat --> Boolean 
           type: boolean
           default: false
@@ -297,89 +310,27 @@ components:
 
     NewMessage:
       type: object
-      description: Representation of a New Message in the system
+      description: Input payload for sending a new message. Server handles timestamp and author.
       properties:
         contentMess:
           type: string
           minLength: 1
           maxLength: 5000
-          #pattern:            Validare/Sanificare lato server (testo + emoji + foto(o gif) anche Allegati (e tutte le permutazioni )
-          description: Message content. May include text, emojis, links, and attachments.
-        timestamp:
-          type: string
-          format: date-time
-          description: Message timestamp
-        statusInfo:
-          type: string
-          enum:
-            - sent
-            - delivered
-            - read
-          description: Message status
-        conversationId:                     # E' già nel path
-          type: string
-          format: uuid
-          description: Unique Conversation Id
-        senderUserId:
-          type: string
-          format: uuid
-          description: User ID who sent the message
-        senderUsername:
-          type: string
-          description: User who sent the message
-        replyToMessageId:                 # id del messaggio a cui questo messaggio risponde (risposta intesa come feature specifica)
-          type: string
-          format: uuid
-          description: ID of the message this is replying to (if any)
-
-      required: 
+          description: Message content (text, emojis).
+      required:
         - contentMess
-        - timestamp
-        - conversationId
-        - senderUserId
-        - senderUsername
-
 
     MessageUpdate:
       type: object
-      description: Representation of a Message Update in the system
-      properties:
-        contentMess:                    # nuovo contenuto del messaggio
-          type: string
-          minLength: 1
-          maxLength: 5000
-          description: Content of new message (edited)
-        # conversationId:                # E' gia nel Path dell'endpoint
-        #   type: string
-        #   format: uuid
-        timestamp:
-          type: string
-          format: date-time
-          description: New timestamp when the messagge was modified
-      required: 
-        - contentMess
-
-    
-    ReplyMessage:                       # Rispondere a un messaggio
-      type: object
-      description: Representation of a Reply to a Message 
+      description: Input payload for editing a message.
       properties:
         contentMess:
           type: string
           minLength: 1
           maxLength: 5000
-          description: Content of the reply message
-        # conversationId:                # E' gia nel Path dell'endpoint
-        #   type: string
-        #   format: uuid
-        #   description: Conversation Id in which the reply to the message is located
-        replyToMessageId:
-          type: string
-          format: uuid
-          description: Message ID of the message being replied to
-      required: 
+          description: The new content of the message.
+      required:
         - contentMess
-        - replyToMessageId
 
      
     ForwardMessage:                   # Inoltra un messaggio
@@ -426,7 +377,11 @@ components:
           description: User who reacted
         senderUsername:
           type: string
+          minLength: 3
+          maxLength: 30
+          pattern: '^[a-zA-Z0-9._~-]+$'
           description: User username who reacted
+          readOnly: true    # lo gestisco lato server, altrimenti se l'utente cambia nome, devo aggiornare tutti i messaggi precedenti --> l'username me lo ricavo lato server (dal DB)
       required: 
         - reactionId
         - emoji
@@ -445,27 +400,8 @@ components:
           minLength: 1
           maxLength: 20  # Permette emoji composte 
           description: Emoji reaction (single or composite emoji)
-        timestamp:
-          type: string
-          format: date-time
-          description: Reaction timestamp
-        messToReactId:         
-          type: string
-          format: uuid
-          description: The Messagge where will react           
-        senderUserId:
-          type: string
-          format: uuid
-          description: User who reacted
-        senderUsername:
-          type: string
-          description: User username who reacted
       required: 
         - emoji
-        - timestamp
-        - messToReactId
-        - senderUserId
-        - senderUsername
 
 
     Favourite:
@@ -537,88 +473,34 @@ components:
       type: object
       description: Representation requested adding a member to a group
       properties:
-        usersIdToAdd:
+        usernamesToAdd:
           type: array
           items:          ## singolo username da aggiungere
-            type: string 
-            format: uuid           
+            type: string
+            minLength: 3
+            maxLength: 30
+            pattern: '^[a-zA-Z0-9._~-]+$' 
+            description: username         
           minItems: 1
           #maxItems:                                                          # da gestire in backend, perchè sarebbe (300 - numPartecipantiAttuale)
-          description: Array of usernames to add to the group
+          description: Array of username to add to the group
       required: 
-        - usersIdToAdd
+        - usernameToAdd
 
-
-
-    # Notification:
-    #   type: object
-    #   description: Representation of a message notification
-    #   properties:
-    #     id:
-    #       type: string
-    #       format: uuid
-    #       description: Notification ID
-    #     notificationType:
-    #       type: string
-    #       enum:
-    #         - new_message
-    #         - message_reply
-    #         - message_mention
-    #         - group_invite
-    #         - group_member_added
-    #         - group_member_removed
-    #         - group_admin_promoted
-    #         - group_admin_demoted
-    #         - reaction_added
-    #       description: Type of notification
-    #     title:
-    #       type: string
-    #       minLength: 1
-    #       maxLength: 200
-    #       description: Notification title
-    #     body:
-    #       type: string
-    #       minLength: 1
-    #       maxLength: 500
-    #       description: Notification body text
-    #     relatedUserId:
-    #       type: string
-    #       format: uuid
-    #       description: ID of user who triggered the notification
-    #     relatedConversationId:
-    #       type: string
-    #       format: uuid
-    #       description: ID of related conversation
-    #     relatedMessageId:
-    #       type: string
-    #       format: uuid
-    #       description: ID of related message (if applicable)
-    #     timestamp:
-    #       type: string
-    #       format: date-time
-    #       description: Notification timestamp
-    #     read:
-    #       type: boolean
-    #       default: false
-    #       description: Indicates whether the notification has been read or not
-    #   required: 
-    #     - id
-    #     - notificationType
-    #     - title
-    #     - timestamp
-    #     - read
 
 
     AdminRequest:
       type: object
       description: Representation of the request to make a member an administrator of the group
       properties:
-        usernameId:
+        username:
           type: string
-          format: uuid
-          description: Username ID of the user to make/remove as admin
+          minLength: 3
+          maxLength: 30
+          pattern: '^[a-zA-Z0-9._~-]+$' 
+          description: Username of the user to make/remove as admin
       required:
-        - usernameId
+        - username
 
 
     UpdateUsernameRequest:
@@ -634,33 +516,6 @@ components:
       required: 
         - newUsername
 
-
-    ConversationStats:
-      type: object
-      description: Representation of conversation statistics
-      properties:
-        totalMessages:
-          type: integer
-          description: Total number of messages in the conversation
-        totalMembers:
-          type: integer
-          description: Number of members (for groups)
-        mediaCount:
-          type: object
-          description: Media Count 
-          properties:
-            images:
-              type: integer
-              minimum: 0
-              description: Number of Images
-            videos:
-              type: integer
-              minimum: 0
-              description: Number of videos
-            documents:
-              type: integer
-              minimum: 0
-              description: Number of documents
 
     Error:
       type: object
@@ -867,106 +722,15 @@ paths:
                       - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                         username: "martina_02"
                         profilePhoto: "https://cdn.web-chat-app.com/users/martina.jpg"
-                        status: "online"
-                        lastTimeOnline: "2025-11-09T10:30:00Z"
                       - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                         username: "fil_dev"
                         profilePhoto: "https://cdn.web-chat-app.com/users/filippo.jpg"
-                        status: "offline"
-                        lastTimeOnline: "2025-11-09T10:30:00Z"
                     admins:
                       - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                     dtCreated: "2025-09-01T18:00:00Z"
 
 
-  /wasatext/{username}/conversations/search:                 # ricerco una conversation specifica all'interno delle mie (utente loggato in sessione) conversazioni.
-    get:
-      operationId: getConversation
-      summary: Search conversations by name
-      description: Search for conversations (private chat or group chat) by name. Group names can contain emojis, usernames cannot.
-      tags:
-        - Conversations
-      parameters:
-        - name: username
-          in: path
-          required: true
-          schema:
-            type: string
-            minLength: 3                 
-            maxLength: 30   
-            pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
-        - name: query
-          in: query
-          required: true
-          schema:
-            type: string
-            minLength: 1                  # lunghezza minima Gruppo = 1 ---  lunghezza minima username Utente = 3
-            maxLength: 200               # massima lunghezza conversazione (sia singolo --> nome utente quindi già Max = 30) e di gruppo --> LunghezzaNomeGruppo = 200
-            description: Conversation name or username to search for
-          description: Searching Conversation
-      responses:
-        '200':
-          description: Search results
-          content:
-            application/json:
-              schema:
-                type: object
-                description: My Conversations (private chat or group chat)
-                properties:
-                  conversations:
-                    type: array
-                    items:
-                      oneOf:
-                        - $ref: "#/components/schemas/PrivateChat"
-                        - $ref: "#/components/schemas/GroupChat"
-                    minItems: 0
-                    maxItems: 5000                                 # al massimo un risultato della richiesta per una conversazione con un nome specifico (possono esistere conversazioni di Gruppo con Stesso Nome!)
-                    description: Conversations returned
-              example:
-                conversations:                                  # Array di conversazioni (entrambe)
-                  # Caso Esempio Private Chat
-                  - id: "a12f45b0-67c3-4b2f-9a8d-4a9824b1c0d1"
-                    recipientUser:
-                      id: "d27e91a2-4f51-4a89-9e33-1efbc6b38e92"
-                      username: "marta_22"
-                      profilePhoto: "https://web-chat-app.com/users/progile-images/marta_22.png"
-                      status: "Just chilling..."
-                      dtRegistration: "2024-04-12T09:30:00Z"
-                      lastTimeOnline: "2025-11-05T10:14:00Z"
-                    snippet: "See you later!"
-                    dtLastMessage: "2025-11-05T09:50:12Z"
-                    userPhoto: "https://web-chat-app.com/images/marta_22.png"
-        
-                  # Caso Esempio Group Chat
-                  - id: "b78e34c1-92de-412f-83f1-8a0e2327c7a4"
-                    groupName: "WASA Programmers"
-                    groupDescription: "A group for Wasa lovers and learners"
-                    groupPhoto: "https://web-chat-app.com/groups/profile-images/.png"
-                    snippet: "New homework posted today!"
-                    dtLastMessage: "2025-11-04T22:15:45Z"
-                    members:
-                      - id: "e91b8a23-8d0f-4e2d-a4e1-7c6c34b7f345"
-                        username: "LebronJames"
-                        profilePhoto: "https://web-chat-app.com/users/profile-images/lebronJames.png"
-                        status: "Working on a new feature"
-                        dtRegistration: "2023-06-01T11:40:00Z"
-                        lastTimeOnline: "2025-11-05T10:00:00Z"
-                      - id: "f01c32a2-9e56-44f1-b8b1-0a78b2d543f1"
-                        username: "alice_code"
-                        profilePhoto: "https://web-chat-app.com/users/profile-images/alice_code.png"
-                        status: "Debugging my brain :("
-                        dtRegistration: "2024-02-20T13:00:00Z"
-                        lastTimeOnline: "2025-11-05T09:55:00Z"
-                    admins:
-                      - "e91b8a23-8d0f-4e2d-a4e1-7c6c34b7f345"
-                    dtCreated: "2024-09-10T18:00:00Z"
-        '404':
-          description: Conversation Not Found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+
 
   #######################################              
   # ENDPOINTS di Conversazioni Private.
@@ -974,8 +738,12 @@ paths:
   /wasatext/{username}/conversations/private_chats:
     post:
       operationId: newPrivateChat
-      summary: Create a new Private Chat
-      description: Creates a new Private Chat with initial message. If conversation already exists, returns existing conversation.
+      summary: Create a new Private Chat or append message to existing one
+      description: |-
+        Attempts to create a new Private Chat. 
+        - If the chat does NOT exist: Creates it and sends the 'initialMessage' as the first message.
+        - If the chat ALREADY exists: Finds the existing chat and SENDS the 'initialMessage' to it immediately.
+        In both cases, the message is delivered.
       tags:
         - Private Chats
       parameters:
@@ -1156,18 +924,12 @@ paths:
                   - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                     username: "fil_dev"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                     username: "martina_02"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
                     username: "leo_snk"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
-                    status: "offline"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
                   - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                 dtCreated: "2025-11-06T15:09:58Z"
@@ -1221,18 +983,12 @@ paths:
                   - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                     username: "fil_dev"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                     username: "martina_02"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
                     username: "leo_snk"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
-                    status: "offline"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
                   - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                 dtCreated: "2025-11-06T15:09:58Z"
@@ -1292,23 +1048,15 @@ paths:
                   - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                     username: "fil_dev"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                     username: "martina_02"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
                     username: "leo_snk"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
-                    status: "offline"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
                     username: "giulia_m"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
                   - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                 dtCreated: "2025-11-06T15:09:58Z"
@@ -1416,23 +1164,15 @@ paths:
                   - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                     username: "fil_dev"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                     username: "martina_02"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
                     username: "leo_snk"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
-                    status: "offline"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
                     username: "giulia_m"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
                   - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"   # Filippo (admin originario)
                   - "c5b9289e-cc09-4c32-9b5f-12629faecb8d"   # Martina (nuova admin)
@@ -1502,25 +1242,17 @@ paths:
                   - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                     username: "fil_dev"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                     username: "martina_02"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
                     username: "leo_snk"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
-                    status: "offline"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
                     username: "giulia_m"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
-                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"   
+                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"    # filippo, martina è stata tolta da admin!
                 dtCreated: "2025-11-06T15:09:58Z"
                 snippet: "Welcome to BestShooters!"
                 dtLastMessage: "2025-11-06T15:10:23Z"
@@ -1536,55 +1268,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-
-
-
-  /wasatext/{username}/conversations/{conversationId}/typing:
-    post:                                                               # Indicatore di "sta scrivendo"
-      operationId: isTyping
-      summary: Send typing indicator
-      description: Notify other participants that user is typing. Indicator expires after 5 seconds if not refreshed.
-      tags:
-        - Conversations
-      parameters:
-        - name: username
-          in: path
-          required: true
-          schema:
-            type: string
-            minLength: 3                 
-            maxLength: 30  
-            pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
-        - name: conversationId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-            description: Unique Conversation ID
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                isTyping:
-                  type: boolean
-                  description: Indicates whether someone in the conversation is typing...
-              required: 
-                - isTyping
-      responses:
-        '204':
-          description: Typing indicator sent
-        '403':
-          description: User is not part of this conversation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
 
 
   /wasatext/{username}/conversations/groups/{conversationId}/name:
@@ -1640,23 +1323,15 @@ paths:
                   - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                     username: "fil_dev"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
                     username: "martina_02"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
                     username: "leo_snk"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
-                    status: "offline"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                   - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
                     username: "giulia_m"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
                   - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"   
                   - "c5b9289e-cc09-4c32-9b5f-12629faecb8d"   
@@ -1727,8 +1402,6 @@ paths:
                   - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                     username: "fil_dev"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
                   - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                 dtCreated: "2025-11-06T15:09:58Z"
@@ -1803,8 +1476,6 @@ paths:
                   - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                     username: "fil_dev"
                     profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
-                    status: "online"
-                    lastTimeOnline: "2025-11-09T10:30:00Z"
                 admins:
                   - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
                 dtCreated: "2025-11-06T15:09:58Z"
@@ -1881,53 +1552,6 @@ paths:
 
 
 
-  /wasatext/{username}/conversations/{conversationId}/stats:
-    get:
-      operationId: getConversationStats
-      summary: Get conversation statistics
-      description: Get message count, media count, etc.
-      tags:
-        - Conversations
-      parameters:
-        - name: username
-          in: path
-          required: true
-          schema:
-            type: string
-            minLength: 3                 
-            maxLength: 30   
-            pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
-        - name: conversationId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-            description: Unique Conversation ID
-      responses:
-        '200':
-          description: Conversation statistics
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ConversationStats"
-              example:
-                totalMessages: 482
-                totalMembers: 5
-                mediaCount:
-                  images: 134
-                  videos: 27
-                  documents: 9
-        '403':
-          description: User is not part of this conversation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  
-
-
   ########################################
       # ENDPOINTS dei MESSAGGI
   ########################################      
@@ -1952,24 +1576,11 @@ paths:
           description: Unique Conversation ID
     
     get:                                                # ritorna i messaggi di una specifica conversazione
-      operationId: allMessagesOfConversation
+      operationId: getConversation
       summary: Get all messages in a conversation
       description: Returns messages in reverse chronological order (newest first)
       tags:
         - Messages
-      parameters:
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 50
-          description: Number of messages to return
-        - name: before
-          in: query
-          schema:
-            type: string
-            format: date-time
-          description: Get messages before this timestamp (for pagination)
       responses:
         '200':
           description: List of messages
@@ -1984,9 +1595,6 @@ paths:
                       $ref: "#/components/schemas/Message"
                     minItems: 1 # in ogni conversazione c'è almeno 1 messaggio (se una conversazione è iniziata, vuol dire che c'è almeno un messaggio --> per come l'ho implementata)
                     description: Messages in reverse chronological order in this Conversation
-                  hasMore:
-                    type: boolean
-                    description: Indicates if there are more messages to load
               example:
                 messages:
                   - id: "e1f7b4a2-31e6-4b3d-99a1-4cc3c3e2f8c7"
@@ -2011,8 +1619,6 @@ paths:
                     conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
                     senderUserId: "b9d2a12e-9b52-43a9-8fd0-1a552f937f82"
                     senderUsername: "lucas"
-                    # deleted: false
-                    replyToMessageId: "e1f7b4a2-31e6-4b3d-99a1-4cc3c3e2f8c7"
                     forwarded: false
                     reactions:
                       - emoji: "💪"
@@ -2021,7 +1627,7 @@ paths:
                   - id: "7bfa4e12-5d93-43a4-b1d8-f61cb211d87b"
                     contentMess: "Sending you the lineup PDF 📄"
                     timestamp: "2025-11-05T10:30:01Z"
-                    statusInfo: "sent"
+                    statusInfo: "read"
                     conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
                     senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
                     senderUsername: "matthew"
@@ -2049,35 +1655,22 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                contentMessage:
-                  type: string
-                  minLength: 1
-                  maxLength: 5000
-                  description: Content of the new message to be sent
-                replyToMessageId:
-                  type: string
-                  format: uuid
-                  description: Optional - ID of message being replied to
-              required: 
-                - contentMessage
+               $ref: "#/components/schemas/NewMessage"
       responses:
         '201':    # Created
           description: Message sent successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NewMessage"
+                $ref: "#/components/schemas/Message"
               example:
                 id: "b6a8c2d7-52f1-4c1e-9e54-41b3e1a5e7f4"
                 contentMess: "Hey guys, I just created the group event for tonight 🎉"
                 timestamp: "2025-11-05T10:48:31Z"
-                statusInfo: "sent"
+                statusInfo: "read"
                 conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
                 senderUserId: "9f2b3a17-4c9d-45b8-bc73-f4c0a9baf219"
                 senderUsername: "filippo"
-                # deleted: false
                 forwarded: false
                 reactions: []
         '403':
@@ -2114,10 +1707,10 @@ paths:
             format: uuid
             description: Unique Message ID
   
-    put:                                                                        # Modifico un Messaggio
+    patch:                                                                        # Modifico un Messaggio
       operationId: editMessage
-      summary: Edit a message
-      description: Only the sender can edit their own messages
+      summary: Edit a message content
+      description: Update the text content of an existing message. Only the sender can edit.
       tags:
         - Messages
       requestBody:
@@ -2141,7 +1734,6 @@ paths:
                 conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
                 senderUserId: "9f2b3a17-4c9d-45b8-bc73-f4c0a9baf219"
                 senderUsername: "filippo"
-                # deleted: false
                 forwarded: false
                 reactions:
                   - emoji: "👍"
@@ -2183,72 +1775,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-
-
-  /wasatext/{username}/conversations/{conversationId}/messages/reply:
-    post:                                                                   # Rispondere ad un messaggio
-      operationId: replyToMessage
-      summary: Reply to a specific message
-      description: Send a message as a reply to another message
-      tags:
-        - Messages
-      parameters:
-        - name: username
-          in: path
-          required: true
-          schema:
-            type: string
-            minLength: 3                 
-            maxLength: 30   
-            pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
-        - name: conversationId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-            description: Unique Conversation ID
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ReplyMessage"
-          
-
-      responses:
-        '201':
-          description: Reply sent successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Message"
-              example:
-                id: "c4e2a91b-8732-45ef-94a9-6b8b0b9d32a7"
-                contentMess: "Haha yes, that meme was hilarious 😂"
-                timestamp: "2025-11-05T14:22:31Z"
-                statusInfo: "sent"
-                conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
-                senderUserId: "9f2b3a17-4c9d-45b8-bc73-f4c0a9baf219"
-                senderUsername: "filippo21"
-                # deleted: false
-                replyToMessageId: "5b13bde0-4d59-45b1-9f42-91c2a017d24a"
-                forwarded: false
-                reactions: []
-        '403':
-          description: User is not part of this conversation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        '404':
-          description: Original message not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
 
 
   /wasatext/{username}/conversations/{conversationId}/messages/forward:
@@ -2293,9 +1819,9 @@ paths:
                 id: "d8a2f96e-2b89-4f1d-8a32-94e0a22f13cc"
                 timestamp: "2025-11-05T15:10:42Z"
                 senderUserId: "b1f3a6c4-9d21-40de-94ef-2c84f15c3279"
-                statusInfo: "sent"
+                statusInfo: "read"
                 conversationId: "6e7f3d3a-4b81-4cf5-ae41-f6b6e85a0021"
-                contentMess: "📸 Check out this photo! (forwarded)"
+                contentMess: "📸 Check out this photo!"
                 senderUsername: "filippo21"
                 # deleted: false
                 forwarded: true
@@ -2485,7 +2011,7 @@ paths:
                 lastTimeOnline: "2025-11-05T09:42:10Z"
 
 
-/wasatext/{username}/profile/status:
+  /wasatext/{username}/profile/status:
 
     patch:                                                                  # Modifico il profilo utente, dell'utente loggato in questo momento
       operationId: modifyProfileStatus
@@ -2691,11 +2217,11 @@ paths:
 
 
 
-  /wasatext/{username}/users/{userId}:
+  /wasatext/{username}/users/{usernameProfileSearched}:
     get:                                                                      # ritornare un profilo utente tramite id
       operationId: getUserProfile
       summary: Get user profile by ID
-      description: I return the user profile by passing his ID as a parameter in the path
+      description: I return the user profile by passing his username as a parameter in the path
       tags:
         - Users
       parameters:
@@ -2708,7 +2234,7 @@ paths:
             maxLength: 30    
             pattern: '^[a-zA-Z0-9._~-]+$'
             description: Username of the user loggin in this session
-        - name: userId
+        - name: usernameProfileSearched
           in: path
           required: true
           schema:
@@ -2737,289 +2263,12 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /wasatext/{username}/users/blocked:
-    get:                                                                # ritorna tutti gli Utenti bloccati dall'utente attualmente nella sessione
-      operationId: allUsersBlocked
-      summary: Get list of blocked users
-      description: Returns the list of all users blocked by the logged in user in session
-      tags:
-        - Users
-      parameters:
-        - name: username
-          in: path
-          required: true
-          schema:
-            type: string
-            minLength: 3                 
-            maxLength: 30  
-            pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
-      responses:
-        '200':
-          description: List of blocked users
-          content:
-            application/json:
-              schema:
-                type: object
-                description: blocked users schema
-                properties:
-                  blockedUsers:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/User"
-                    minItems: 0                                    # un utente potrebbe avere 0 utenti bloccati
-                    description: All users blocke by the user logged in this session
-              example:
-                blockedUsers:
-                  - id: "b4a2f891-39a5-4c7d-92e4-3f7b52baf041"
-                    username: "marco_92"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/marco_92.jpg"
-                    status: "Can't message me right now 🚫"
-                    dtRegistration: "2023-10-15T09:45:21Z"
-                    lastTimeOnline: "2025-11-05T08:30:10Z"
-
-                  - id: "e2f1c3d7-7b22-48cc-bd24-b7e8c4b91e2a"
-                    username: "sara_tech"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/sara_tech.png"
-                    status: "Living offline 🌿"
-                    dtRegistration: "2024-01-27T17:20:02Z"
-                    lastTimeOnline: "2025-11-04T21:05:47Z"
-
-
-  /wasatext/{username}/users/{userId}/block:
-    parameters:
-        - name: username
-          in: path
-          required: true
-          schema:
-            type: string
-            minLength: 3                 
-            maxLength: 30 
-            pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-            description: Unique User ID
-    
-    post:                                                             # Utente nella sessione blocca un utente  
-      operationId: blockUser                             
-      summary: Block a user
-      description: Blocked users cannot send messages or see your status
-      tags:
-        - Users 
-      responses:
-        '204':
-          description: User blocked successfully
-        '400':
-          description: Cannot block yourself
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-    delete:                                                         # Utente nella sessione "Sblocca" un Utente
-      operationId: unblockUser
-      summary: Unblock a user
-      description: When the user decides to unblock a user he has blocked (and is still blocked)
-      tags:
-        - Users
-      responses:
-        '204':
-          description: User unblocked successfully
-
-
-
+  
 
   
   ###########################################
   # ALTRO
   ###########################################
-
-  /wasatext/{username}/search/messages:
-    get:                                                        # cerca un messaggio (in generale) --> trovabile in tutte le conversazioni (non una specifica)
-      operationId: searchMessageGlob
-      summary: Search messages across all conversations
-      description: Search for a specific message, the message can be found in all (still saved) conversations the user has had
-      tags:
-        - Search
-      parameters:
-        - name: username
-          in: path
-          required: true
-          schema:
-            type: string
-            minLength: 3                 
-            maxLength: 30 
-            pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
-
-        - name: query
-          in: query
-          required: true
-          schema:
-            type: string  
-            minLength: 1
-          description: Search query text
-        - name: conversationId
-          in: query
-          schema:
-            type: string
-            format: uuid
-            description: Optional - limit search to specific conversation
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 50
-          description: Number of results to return
-      responses:
-        '200':
-          description: Search results
-          content:
-            application/json:
-              schema:
-                type: object
-                description: Matching Messages Founded
-                properties:
-                  messages:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Message"
-                    minItems: 0         # posso trovare anche 0 match di messaggi
-                    description: Matching messages
-                  total:
-                    type: integer
-                    description: Total number of matching messages
-              example:
-                total: 2
-                messages:
-                  - id: "b8e4e2f5-3f1b-4d87-8f1e-54c6b621e8a2"
-                    contentMess: "Hey, did you check the new FlowChat design update?"
-                    timestamp: "2025-11-05T09:25:14Z"
-                    statusInfo: "read"
-                    conversationId: "6f9a2d9b-4e47-4128-8452-ec9e30f3e781"
-                    senderUserId: "a123e456-789b-12d3-a456-426614174000"
-                    senderUsername: "filippo98"
-                    # deleted: false
-                    forwarded: false
-                    reactions:
-                      - reactionId: "0f18b98a-6f1c-4c3b-9e89-9cfb3bfe6423"
-                        emoji: "👍"
-                        timestamp: "2025-11-05T09:26:01Z"
-                        messToReactId: "1b3dt48a-3d1e-3v6d-9w89-9cer3rth6423"
-                        senderUserId: "7b5e6d33-4f91-44fa-b15c-217d8c3fbd28"
-                        senderUsername: "marco_92"
-
-                  - id: "9e12b8d4-8b7f-4d33-82e2-0a9c2db176c9"
-                    contentMess: "Yeah, I saw it! The new color palette looks amazing 😍"
-                    timestamp: "2025-10-30T18:11:42Z"
-                    statusInfo: "delivered"
-                    conversationId: "6f9a2d9b-4e47-4128-8452-ec9e30f3e781"
-                    senderUserId: "7b5e6d33-4f91-44fa-b15c-217d8c3fbd28"
-                    senderUsername: "marco_92"
-                    # deleted: false
-                    replyToMessageId: "b8e4e2f5-3f1b-4d87-8f1e-54c6b621e8a2"
-                    forwarded: false
-                    reactions: []
-
-
-  # /wasatext/{username}/notifications:
-  #   parameters:
-  #       - name: username
-  #         in: path
-  #         required: true
-  #         schema:
-  #           type: string
-  #           minLength: 3                 
-  #           maxLength: 30    
-  #           pattern: '^[a-zA-Z0-9._~-]+$'
-  #           description: Username of the user loggin in this session
-            
-  #   get:                                                                # Si ottengono tutte le notifiche dell'utente nella sessione
-  #     operationId: allNotifications
-  #     summary: Get user notifications
-  #     description: Get list of notifications for the user (mentions, replies, new messages when offline, etc.)
-  #     tags:
-  #       - Notifications
-  #     parameters:
-  #       - name: unreadOnly                                              # le notifiche ancora NON lette
-  #         in: query
-  #         schema:
-  #           type: boolean
-  #           default: false
-  #         description: If true, return only unread notifications
-  #       - name: limit                                                   # limite di notifiche da ritornare (di default ho messo 50)
-  #         in: query
-  #         schema:
-  #           type: integer
-  #           default: 50
-  #         description: Number of notifications to return
-  #     responses:
-  #       '200':
-  #         description: List of notifications
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 notifications:
-  #                   type: array
-  #                   items:
-  #                     $ref: "#/components/schemas/Notification"
-  #                 unreadCount:                                          # numero totale notifiche ancora non lette
-  #                   type: integer
-  #                   description: Total number of unread notifications
-  #   put:                                                              # Segno come "Letto" tutte le notifiche
-  #     operationId: readAllNotifications
-  #     summary: Mark all notifications as read
-  #     description: Mark all notifications as read
-  #     tags:
-  #       - Notifications
-  #     responses:
-  #       '204':
-  #         description: All notifications marked as read
-
-
-
-
-  # /wasatext/{username}/notifications/{notificationId}:
-  #   put:                                                                # Segno come "Letto" una notifica specifica
-  #     operationId: readNotification
-  #     summary: Mark notification as read
-  #     description: I mark a specific notification as read
-  #     tags:
-  #       - Notifications
-  #     parameters:
-  #       - name: username
-  #         in: path
-  #         required: true
-  #         schema:
-  #           type: string
-  #           minLength: 3                 
-  #           maxLength: 30  
-  #           pattern: '^[a-zA-Z0-9._~-]+$'
-  #           description: Username of the user loggin in this session
-  #       - name: notificationId
-  #         in: path
-  #         required: true
-  #         schema:
-  #           type: string
-  #           format: uuid
-  #           description: Unique Notification ID
-  #     responses:
-  #       '204':
-  #         description: Notification marked as read
-  #       '404':
-  #         description: Notification not found
-  #         content:
-  #           application/json:
-  #             schema:
-  #               $ref: "#/components/schemas/Error"
-
 
 
   /wasatext/{username}/conversations/{conversationId}/messages/{messageId}/favourite:
