@@ -2452,7 +2452,14 @@ paths:
   #####################################
 
   /wasatext/{username}/profile:
-    parameters:
+
+    get:                                                                    # Ottengo i dettagli del profilo che è loggato in questo momento
+      operationId: myProfileDetails
+      summary: Get current user profile
+      description: Returns all the information about the user logged in to the session
+      tags:
+        - Users
+      parameters:
         - name: username
           in: path
           required: true
@@ -2462,12 +2469,6 @@ paths:
             maxLength: 30         
             pattern: '^[a-zA-Z0-9._~-]+$'
             description: Username of the user loggin in this session
-    get:                                                                    # Ottengo i dettagli del profilo che è loggato in questo momento
-      operationId: myProfileDetails
-      summary: Get current user profile
-      description: Returns all the information about the user logged in to the session
-      tags:
-        - Users
       responses:
         '200':
           description: Current user details
@@ -2484,6 +2485,7 @@ paths:
                 lastTimeOnline: "2025-11-05T09:42:10Z"
 
 
+/wasatext/{username}/profile/status:
 
     patch:                                                                  # Modifico il profilo utente, dell'utente loggato in questo momento
       operationId: modifyProfileStatus
@@ -2491,6 +2493,16 @@ paths:
       description: Update current User profile logged in this session
       tags:
         - Users
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3                 
+            maxLength: 30         
+            pattern: '^[a-zA-Z0-9._~-]+$'
+            description: Username of the user loggin in this session
       requestBody:
         required: true
         content:
