@@ -124,4 +124,7 @@ func (rt *_router) Handler() http.Handler {
 	rt.router.GET("/wasatext/:username/conversations/:conversationId/messages/:messageId/reactions", rt.getAllMessageReactions)
 
 	return rt.router
+
+	// Definiti in modo Astatto, li devo implementare
+
 }
