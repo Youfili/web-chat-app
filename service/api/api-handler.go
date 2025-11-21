@@ -18,75 +18,76 @@ func (rt *_router) Handler() http.Handler {
 	rt.router.POST("/wasatext/register", rt.registerUser)
 
 	// ------------------------------------------------
-	// USERS (Profile, Status, Search, Block)
+	// USERS (Profile, Status, Search)
 	// ------------------------------------------------
 	// Get current user profile
 	rt.router.GET("/wasatext/:username/profile", rt.myProfileDetails)
-	
+
 	// Update current user status (PATCH /status)
 	rt.router.PATCH("/wasatext/:username/profile/status", rt.modifyProfileStatus)
-	
+
 	// Update username (PUT /username)
 	rt.router.PUT("/wasatext/:username/profile/username", rt.setMyUserName)
-	
+
 	// Update profile photo (PUT /photo)
 	rt.router.PUT("/wasatext/:username/profile/photo", rt.setMyPhoto)
 
-	// Get another user's profile
-	rt.router.GET("/wasatext/:username/users/:userId", rt.getUserProfile)
+	// Search user (Query param: ?usernameSearched=...)
+	rt.router.GET("/wasatext/:username/user_search", rt.searchUser)
 
+	// Get another user's profile by ID
+	rt.router.GET("/wasatext/:username/users/:usernameProfileSearched", rt.getUserProfile)
 
 	// ------------------------------------------------
-	// CONVERSATIONS (General)
+	// CONVERSATIONS (General List)
 	// ------------------------------------------------
 	// Get all conversations
 	rt.router.GET("/wasatext/:username/conversations", rt.getMyConversations)
 
-
 	// ------------------------------------------------
-	// PRIVATE CHATS
+	// PRIVATE CHATS (Root level)
 	// ------------------------------------------------
 	// Create new private chat (or append message)
-	rt.router.POST("/wasatext/:username/conversations/private_chats", rt.newPrivateChat)
+	rt.router.POST("/wasatext/:username/private_chats", rt.newPrivateChat)
 
 	// Get specific private chat
-	rt.router.GET("/wasatext/:username/conversations/private_chats/:conversationId", rt.getPrivateChatById)
+	rt.router.GET("/wasatext/:username/private_chats/:conversationId", rt.getPrivateChatById)
 
 	// Delete private chat
-	rt.router.DELETE("/wasatext/:username/conversations/private_chats/:conversationId", rt.deletePrivateChat)
+	rt.router.DELETE("/wasatext/:username/private_chats/:conversationId", rt.deletePrivateChat)
 
 	// ------------------------------------------------
-	// GROUP CHATS
+	// GROUP CHATS (Root level)
 	// ------------------------------------------------
 	// Create new group
-	rt.router.POST("/wasatext/:username/conversations/groups", rt.createNewGroup)
+	rt.router.POST("/wasatext/:username/groups", rt.createNewGroup)
 
 	// Get specific group chat
-	rt.router.GET("/wasatext/:username/conversations/groups/:conversationId", rt.getGroupChat)
+	rt.router.GET("/wasatext/:username/groups/:conversationId", rt.getGroupChat)
 
 	// Add members to group
-	rt.router.POST("/wasatext/:username/conversations/groups/:conversationId/members", rt.addToGroup)
+	rt.router.POST("/wasatext/:username/groups/:conversationId/members", rt.addToGroup)
 
 	// Remove member from group
-	rt.router.DELETE("/wasatext/:username/conversations/groups/:conversationId/members/:userId", rt.removeMember)
+	rt.router.DELETE("/wasatext/:username/groups/:conversationId/members/:userId", rt.removeMember)
 
 	// Leave group
-	rt.router.POST("/wasatext/:username/conversations/groups/:conversationId/leave", rt.leaveGroup)
+	rt.router.POST("/wasatext/:username/groups/:conversationId/leave", rt.leaveGroup)
 
 	// Make user admin
-	rt.router.POST("/wasatext/:username/conversations/groups/:conversationId/admins", rt.makeAdmin)
+	rt.router.POST("/wasatext/:username/groups/:conversationId/admins", rt.makeAdmin)
 
 	// Remove admin status
-	rt.router.DELETE("/wasatext/:username/conversations/groups/:conversationId/admins/:usernameAdmin", rt.removeAdminStatus)
+	rt.router.DELETE("/wasatext/:username/groups/:conversationId/admins/:usernameAdmin", rt.removeAdminStatus)
 
 	// Update group name
-	rt.router.PUT("/wasatext/:username/conversations/groups/:conversationId/name", rt.setGroupName)
+	rt.router.PUT("/wasatext/:username/groups/:conversationId/name", rt.setGroupName)
 
 	// Update group description
-	rt.router.PUT("/wasatext/:username/conversations/groups/:conversationId/description", rt.setGroupDescription)
+	rt.router.PUT("/wasatext/:username/groups/:conversationId/description", rt.setGroupDescription)
 
 	// Update group photo
-	rt.router.PUT("/wasatext/:username/conversations/groups/:conversationId/photo", rt.setGroupPhoto)
+	rt.router.PUT("/wasatext/:username/groups/:conversationId/photo", rt.setGroupPhoto)
 
 	// ------------------------------------------------
 	// MESSAGES
@@ -103,8 +104,8 @@ func (rt *_router) Handler() http.Handler {
 	// Delete message
 	rt.router.DELETE("/wasatext/:username/conversations/:conversationId/messages/:messageId", rt.deleteMessage)
 
-	// Forward message
-	rt.router.POST("/wasatext/:username/conversations/:conversationId/messages/forward", rt.forwardMessage)
+	// Forward message (Updated path structure)
+	rt.router.POST("/wasatext/:username/conversations/:conversationId/messages/:messageId/forward", rt.forwardMessage)
 
 	// ------------------------------------------------
 	// REACTIONS
@@ -121,17 +122,15 @@ func (rt *_router) Handler() http.Handler {
 	// ------------------------------------------------
 	// FAVOURITES
 	// ------------------------------------------------
-	// Get all favourites (Global)
-	rt.router.GET("/wasatext/:username/favourites", rt.getAllUserFavourites)
-
 	// Get favourites in conversation
 	rt.router.GET("/wasatext/:username/conversations/:conversationId/favourites", rt.getConversationFavourites)
 
-	// Add message to favouritesgetConversationFavourites
+	// Add message to favourites
 	rt.router.POST("/wasatext/:username/conversations/:conversationId/messages/:messageId/favourite", rt.addMessageToFavourites)
 
 	// Remove message from favourites
 	rt.router.DELETE("/wasatext/:username/conversations/:conversationId/messages/:messageId/favourite", rt.removeMessageFromFavourites)
+
 
 
 	return rt.router

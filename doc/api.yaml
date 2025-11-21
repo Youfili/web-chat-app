@@ -16,16 +16,19 @@ tags:
     description: User management, search
   - name: Conversations
     description: General conversation operations
-  - name: Private Chat
+  - name: Private Chats
     description: One-to-one conversation management
-  - name: Group Chat
+  - name: Group Chats
     description: Group Chat management and administration
   - name: Messages
     description: Message operations (send, edit, delete, forward)
   - name: Reactions
     description: Message reaction operations
   - name: Favourites
-    description: Favourite messages management
+    description: Favourite messages 
+  - name: Login
+    description: Login user
+
 
 components:
 
@@ -45,6 +48,9 @@ components:
         id:
           type: string
           format: uuid
+          minLength: 36     
+          maxLength: 36      
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
           description: Unique user id (UUID)
         username:
           type: string
@@ -56,52 +62,23 @@ components:
         profilePhoto:
           type: string
           format: url                               # Url dell'immagine
+          minLength: 10
+          maxLength: 500
+          pattern: '^https?:\/\/[^\s\/$.?#].[^\s]*$'
           description: URL User profile photo
         status:
           type: string 
+          minLength: 1
           maxLength: 200
+          pattern: '.*'               # gestire lato server
           description: User Status
           #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji                  
           example: "Available, write to me! :)"
-        dtRegistration:                            # Creato quando lo creo come nuovo utente 
-          type: string
-          format: date-time
-          description: Account creation Date-Time (UTC)
-        lastTimeOnline:
-          type: string
-          format: date-time
-          description:  User Last Access on the App (UTC)
+
       required:
         - id 
         - username
         - profilePhoto
-        - status
-        - lastTimeOnline
-
-
-    UserSummary:
-      type: object
-      description: A lightweight representation of a user (for lists and members)
-      properties:
-        id:
-          type: string
-          format: uuid
-          description: Unique user id
-        username:
-          type: string
-          minLength: 3
-          maxLength: 30
-          pattern: '^[a-zA-Z0-9._~-]+$'
-          description: User username
-        profilePhoto:
-          type: string
-          format: url
-          description: URL User profile photo
-      required:
-        - id
-        - username
-        - profilePhoto
-
   
     GroupChat:
       type: object
@@ -110,12 +87,15 @@ components:
         id:
           type: string
           format: uuid
+          minLength: 36     
+          maxLength: 36      
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
           description: Unique id Conversation
         groupName:
           type: string
           minLength: 1
           maxLength: 200
-          #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji  
+          pattern: '.*'             # gestire lato server
           example: BestShooters
           description: Group name
         groupDescription:
@@ -128,12 +108,18 @@ components:
         groupPhoto:
           type: string
           format: url
+          minLength: 10
+          maxLength: 500
+          pattern: '^https?:\/\/[^\s\/$.?#].[^\s]*$'
           description: Group photo
         members:
           type: array
           items:
             type: string
             format: uuid
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
             description: Id user of member  to add      # passo gli id, poi gestisco lato server
           minItems: 1                                   # almeno un utente deve essere unito al gruppo (quando creato)
           maxItems: 300
@@ -144,30 +130,46 @@ components:
           items:
             type: string
             format: uuid
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
             description: User IDs of group admins
           minItems: 1
           maxItems: 100
-        dtCreated:
-          type: string
-          format: date-time
-          description: date and time when the group was created
         snippet:              # anteprima
           type: string
+          minLength: 1
           maxLength: 300
+          pattern: '.*'             # gestire lato server
           description: Conversation snippet
           #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji            
           example: "Yeah, I want to talk about..."
         dtLastMessage:
           type: string
           format: date-time
+          minLength: 20
+          maxLength: 50
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[\+\-]\d{2}:\d{2})$'
           description: date and time of the last message in a Group Chat
+        favourites:
+          type: array
+          description: Favourite Meesage IDs Array of this GroupChat
+          minItems: 0
+          maxItems: 100000
+          items:
+            type: string
+            format: uuid
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+            description: Favorite message ID
+
       required: 
         - groupName
         - members
-        - dtCreated
 
 
-    NewGroupChat:
+    GroupChatPrototype:     # Inserimento di una nuova chat di gruppo
       type: object
       description: Representation of a NEW Group Chat
       properties:
@@ -175,13 +177,13 @@ components:
           type: string
           minLength: 1
           maxLength: 200
-          #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji  
+          pattern: '.*'             # gestire lato server
           description: Group name
         groupDescription:
           type: string
           minLength: 1
           maxLength: 1000
-          #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji  
+          pattern: '.*'             # gestire lato server
           description: Group description
         members:
           type: array
@@ -206,45 +208,81 @@ components:
         id:
           type: string
           format: uuid
+          minLength: 36     
+          maxLength: 36      
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
           description: Unique Private Chat Id
         recipientUser:
-          $ref: "#/components/schemas/User"
+          type: string
+          format: uuid
+          minLength: 36     
+          maxLength: 36      
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Id of recipient user
         snippet:              # anteprima
           type: string
+          minLength: 1
           maxLength: 300
-          #pattern:            Validare/Sanificare lato server  # pattern che permette Testo + Emoji  
+          pattern: '.*'             # gestire lato server
           example: "Yeah, I want to talk about..."
           description: Private Chat snippet
         dtLastMessage:
           type: string
           format: date-time
+          minLength: 20
+          maxLength: 50
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[\+\-]\d{2}:\d{2})$'
           description: date and time of the last message in a Sigle Conversation
         userPhoto:
           type: string
           format: url
+          minLength: 10
+          maxLength: 500
+          pattern: '^https?:\/\/[^\s\/$.?#].[^\s]*$'
           description: User Photo
+        favourites:
+          type: array
+          description: List of favourite message IDs
+          minItems: 0
+          maxItems: 100000
+          items:
+            type: string
+            format: uuid
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+            description: Favourite message id
+        initialMessage:           # lo inserisco perché per scelta progettuale voglio che per iniziare una conversazione privata, debba essere inviato almeno un messaggio
+          type: string
+          minLength: 1
+          maxLength: 5000
+          pattern: '.*'
+          description: First message (Write Only - used during creation)
+          writeOnly: true
       required: 
         - id 
         - recipientUser
 
 
-    NewPrivateChat:
+    PrivateChatPrototype:     # Inserimento di una nuova chat privata
       type: object
       description:  Representation of a NEW Private Chat
       properties:
-        recipientUsername:
+        recipientUser:
           type: string
-          minLength: 3
-          maxLength: 30
-          pattern: '^[a-zA-Z0-9._~-]+$'
-          description: Username of user who sent
+          format: uuid
+          minLength: 36     
+          maxLength: 36      
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Id of recipient user
         initialMessage:
           type: string
           minLength: 1
           maxLength: 5000
+          pattern: '.*'             # gestire lato server
           description: First message to send in the conversation
       required: 
-        - recipientUsername
+        - recipientUser
         - initialMessage
 
 
@@ -255,16 +293,22 @@ components:
         id:
           type: string
           format: uuid
+          minLength: 36     
+          maxLength: 36      
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
           description: Unique Message Id
         contentMess:
           type: string
           minLength: 1
           maxLength: 5000
-          #pattern:            Validare/Sanificare lato server (testo + emoji + foto(o gif) anche Allegati (e tutte le permutazioni )
+          pattern: '.*'             # gestire lato server
           description: Message content. May include text, emojis, links, and attachments.
         timestamp:
           type: string
           format: date-time
+          minLength: 20
+          maxLength: 50
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[\+\-]\d{2}:\d{2})$'
           description: Message timestamp
         statusInfo:
           type: string
@@ -275,10 +319,16 @@ components:
         conversationId:
           type: string
           format: uuid
+          minLength: 36     
+          maxLength: 36      
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
           description: Unique Conversation Id
         senderUserId:
           type: string
           format: uuid
+          minLength: 36     
+          maxLength: 36      
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
           description: User ID who sent the message
         senderUsername:
           type: string
@@ -293,19 +343,20 @@ components:
           description: Indicates if message was forwarded
         reactions:
           type: array
+          description: List of reactions
+          minItems: 0
+          maxItems: 300
           items:
             $ref: "#/components/schemas/Reaction"
-          minItems: 0
-          maxItems: 300                   # proprio come il numero massimo di utenti presenti in un gruppo
-          description: Message Reactions
+          
 
       required: 
         - id
         - contentMess
         - timestamp
+        - statusInfo
         - conversationId
         - senderUserId
-        - senderUsername
 
 
     NewMessage:
@@ -316,6 +367,7 @@ components:
           type: string
           minLength: 1
           maxLength: 5000
+          pattern: '.*'
           description: Message content (text, emojis).
       required:
         - contentMess
@@ -328,6 +380,7 @@ components:
           type: string
           minLength: 1
           maxLength: 5000
+          pattern: '.*'
           description: The new content of the message.
       required:
         - contentMess
@@ -337,16 +390,15 @@ components:
       type: object
       description: Representation of a forwarded message
       properties:
-        messToForwardId:
-          type: string
-          format: uuid
-          description: ID of message to forward
+        # messToForwardId: E' nell'URL del path
         conversationToForwardId:
           type: string
           format: uuid
+          minLength: 36     
+          maxLength: 36      
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
           description: Conversation to forward the message
       required: 
-        - messToForwardId
         - conversationToForwardId
 
 
@@ -357,23 +409,36 @@ components:
         reactionId: 
           type: string
           format: uuid
+          minLength: 36     
+          maxLength: 36      
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
           description: Reaction ID
         emoji:
           type: string
           minLength: 1
           maxLength: 20  # Permette emoji composte 
+          pattern: '.*'             # gestire lato server
           description: Emoji reaction (single or composite emoji)
         timestamp:
           type: string
           format: date-time
+          minLength: 20
+          maxLength: 50
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[\+\-]\d{2}:\d{2})$'
           description: Reaction timestamp
         messToReactId:         
           type: string
           format: uuid
+          minLength: 36     
+          maxLength: 36      
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
           description: The Messagge where will react           
         senderUserId:
           type: string
           format: uuid
+          minLength: 36     
+          maxLength: 36      
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
           description: User who reacted
         senderUsername:
           type: string
@@ -385,11 +450,7 @@ components:
       required: 
         - reactionId
         - emoji
-        - timestamp
-        - messToReactId
-        - senderUserId
         - senderUsername
-
 
     NewReaction:
       type: object
@@ -399,74 +460,10 @@ components:
           type: string
           minLength: 1
           maxLength: 20  # Permette emoji composte 
+          pattern: '.*'             # gestire lato server
           description: Emoji reaction (single or composite emoji)
       required: 
         - emoji
-
-
-    Favourite:
-      type: object
-      description: Relationship between a user and their favourite message
-      properties:
-        id:
-          type: string
-          format: uuid
-          description: Unique favourite ID
-        userId:
-          type: string
-          format: uuid
-          description: User who marked this as favourite
-        messageId:
-          type: string
-          format: uuid
-          description: The message marked as favourite
-        conversationId:
-          type: string
-          format: uuid
-          description: Conversation where the message belongs
-        dateMarked:
-          type: string
-          format: date-time
-          description: When the message was marked as favourite
-      required:
-        - id
-        - userId
-        - messageId
-        - conversationId
-        - dateMarked
-
-    
-    FavouriteMessageWithContext:
-      type: object
-      description: Favourite message with conversation context
-      properties:
-        favourite:
-          $ref: "#/components/schemas/Favourite"
-        message:
-          $ref: "#/components/schemas/Message"
-        conversationInfo:
-          type: object
-          description: Context information about the conversation
-          properties:
-            conversationId:
-              type: string
-              format: uuid
-              description: Unique Conversation ID
-            conversationType:
-              type: string
-              enum: 
-                - single 
-                - group
-              description: Type of conversation in which the message added to favorites is located
-            conversationName:
-              type: string
-              minLength: 1
-              maxLength: 200
-              description: Username for Private Chats, group name for groups
-            conversationPhoto:
-              type: string
-              format: url
-              description: Conversation photo
 
 
     AddMembersRequest:
@@ -482,10 +479,10 @@ components:
             pattern: '^[a-zA-Z0-9._~-]+$' 
             description: username         
           minItems: 1
-          #maxItems:                                                          # da gestire in backend, perchè sarebbe (300 - numPartecipantiAttuale)
+          maxItems: 300                                                    
           description: Array of username to add to the group
       required: 
-        - usernameToAdd
+        - usernamesToAdd
 
 
 
@@ -493,14 +490,14 @@ components:
       type: object
       description: Representation of the request to make a member an administrator of the group
       properties:
-        username:
+        usernameToPromote:
           type: string
           minLength: 3
           maxLength: 30
           pattern: '^[a-zA-Z0-9._~-]+$' 
           description: Username of the user to make/remove as admin
       required:
-        - username
+        - usernameToPromote
 
 
     UpdateUsernameRequest:
@@ -525,16 +522,19 @@ components:
           type: string
           minLength: 1
           maxLength: 200
+          pattern: '.*'             
           description: Error message
         code:
           type: string
           minLength: 1
           maxLength: 50
+          pattern: '.*'             
           description: Error code
         details:
           type: string
           minLength: 0
           maxLength: 500
+          pattern: '.*'             
           description: Additional error details
       required: 
         - error
@@ -547,7 +547,8 @@ paths:
     post:
       operationId: doLogin
       security: []
-      tags: ["login"]
+      tags: 
+        - Login
       summary: Logs in the user
       description: |-
         If the user does not exist, it will be created,
@@ -566,7 +567,8 @@ paths:
                   type: string
                   example: Steph
                   minLength: 3
-                  maxLength: 16
+                  maxLength: 30
+                  pattern: '^[a-zA-Z0-9._~-]+$'
                   description: Login Name
       responses:
         '201':
@@ -577,17 +579,21 @@ paths:
                 type: object
                 description: Response containing the unique identifier of the logged-in or newly created user.
                 properties:
-                  identifier:
+                  name:
                     type: string
-                    description: User Identifier (ID)
+                    minLength: 3
+                    maxLength: 30
+                    pattern: '^[a-zA-Z0-9._~-]+$'
+                    description: Login Name
               example:
-                identifier: "c12f8a3b-45d2-4baf-b27a-89dc4f3b5f9c"
+                name: "Steph"
   
   /wasatext/register:                                                                                  # Registrare un nuovo utente
     post:
       operationId: registerUser
       security: []
-      tags: ["Users"]
+      tags: 
+        - Users
       summary: Register a new user
       description: |-
         Creates a new user account with the provided credentials.
@@ -610,12 +616,17 @@ paths:
                   description: Unique username (letters, numbers, underscore only)
                 status:
                   type: string
+                  minLength: 1
                   maxLength: 200
+                  pattern: '.*'
                   example: "New to FlowChat!"
                   description: Initial user status message
                 profilePhoto:
                   type: string
                   format: url
+                  minLength: 10
+                  maxLength: 500
+                  pattern: '^https?:\/\/[^\s\/$.?#].[^\s]*$'
                   description: URL to profile photo (optional, default avatar if not provided)
               required:
                 - username
@@ -626,22 +637,23 @@ paths:
             application/json:
               schema:
                 type: object
+                description: User created successfully
                 properties:
                   identifier:
                     type: string
                     format: uuid
+                    minLength: 36     
+                    maxLength: 36      
+                    pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
                     description: Unique user identifier
                   user:
                     $ref: "#/components/schemas/User"
               example:
-                identifier: "f2a1b7d4-9c5e-4b2e-a6d3-8e1a9c7d5b22"
+                identifier: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                 user:
-                  id: "f2a1b7d4-9c5e-4b2e-a6d3-8e1a9c7d5b22"
+                  id: "f4a8c2d1-0e9b-41b6-bd3c-527ef43ac821"
                   username: "steph_curry"
-                  status: "New to FlowChat!"
                   profilePhoto: "https://web-chat-app.com/users/profile-images/default.png"
-                  dtRegistration: "2025-11-09T10:30:00Z"
-                  lastTimeOnline: "2025-11-09T10:30:00Z"
         '400':
           description: Invalid input or username already exists
           content:
@@ -652,12 +664,6 @@ paths:
                 error: "Username already exists"
                 code: "USERNAME_TAKEN"
                 details: "The username 'steph_curry' is already registered"
-        '422':
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
 
 
   /wasatext/{username}/conversations:     # prendo tutte le conversazioni dell'utente loggato in corso --> Lista delle conversazioni (pannelllo a sinistra)
@@ -701,33 +707,23 @@ paths:
 
               example:
                 conversations:
-                  - id: "7e2f13e0-8d9f-4df8-b1a1-4a56e6b943b2"
-                    recipientUser:
-                      id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
-                      username: "martina_02"
-                      profilePhoto: "https://web-chat-app.com/profile-images/martina.jpg"
-                      status: "online"
-                      lastTimeOnline: "2025-11-09T10:30:00Z"
+                  - id: "f4a8c2d1-0e9b-41b6-bd3c-527ef43ac821"
+                    recipientUser: "2e1f9b33-5c7a-4af8-b83e-9f12aa49d223"
                     snippet: "Hey, how’s everything going?"
                     dtLastMessage: "2025-11-06T13:45:12Z"
                     userPhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
 
-                  - id: "2f38b82e-8749-4659-bc1a-8e46f2769bb7"
+                  - id: "5c2e7f88-1b56-4d3f-934b-d18fc2092aa4"
                     groupName: "BestShooters"
                     groupDescription: "This group is only for people who don't shoot bricks :)"
                     groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
                     snippet: "Let’s play at 8 PM tonight!"
                     dtLastMessage: "2025-11-06T12:30:05Z"
                     members:
-                      - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
-                        username: "martina_02"
-                        profilePhoto: "https://cdn.web-chat-app.com/users/martina.jpg"
-                      - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
-                        username: "fil_dev"
-                        profilePhoto: "https://cdn.web-chat-app.com/users/filippo.jpg"
+                      - "f4a8c2d1-0e9b-41b6-bd3c-527ef43ac821"
+                      - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
                     admins:
-                      - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
-                    dtCreated: "2025-09-01T18:00:00Z"
+                      - "f4a8c2d1-0e9b-41b6-bd3c-527ef43ac821"
 
 
 
@@ -735,7 +731,7 @@ paths:
   #######################################              
   # ENDPOINTS di Conversazioni Private.
   ########################################
-  /wasatext/{username}/conversations/private_chats:
+  /wasatext/{username}/private_chats:
     post:
       operationId: newPrivateChat
       summary: Create a new Private Chat or append message to existing one
@@ -755,13 +751,13 @@ paths:
             minLength: 3                 
             maxLength: 30  
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/NewPrivateChat"
+              $ref: "#/components/schemas/PrivateChatPrototype"
       responses:
         '201':
           description: Conversation created successfully
@@ -770,14 +766,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/PrivateChat"
               example:
-                id: "8d33c2d4-61f0-4a5a-a90f-7c15fd7c02d1"                                  #ID generato per questa nuova conversazione Singola
-                recipientUser:
-                  id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
-                  username: "martina_02"
-                  profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
-                  status: "online"
-                  dtRegistration: "2024-02-20T13:00:00Z"
-                  lastTimeOnline: "2025-11-05T09:55:00Z"
+                id: "f4a8c2d1-0e9b-41b6-bd3c-527ef43ac821"
+                recipientUser: "2e1f9b33-5c7a-4af8-b83e-9f12aa49d223"
                 snippet: "Hey, how are you doing?"
                 dtLastMessage: "2025-11-06T14:12:30Z"
                 userPhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
@@ -788,14 +778,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/PrivateChat"
               example:
-                id: "7e2f13e0-8d9f-4df8-b1a1-4a56e6b943b2"
-                recipientUser:
-                  id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
-                  username: "martina_02"
-                  profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
-                  status: "online"
-                  dtRegistration: "2024-02-20T13:00:00Z"
-                  lastTimeOnline: "2025-11-05T09:55:00Z"
+                id: "f4a8c2d1-0e9b-41b6-bd3c-527ef43ac821"
+                recipientUser: "2e1f9b33-5c7a-4af8-b83e-9f12aa49d223"
                 snippet: "See you tomorrow!"
                 dtLastMessage: "2025-11-05T19:45:12Z"
                 userPhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
@@ -808,7 +792,7 @@ paths:
 
 
 
-  /wasatext/{username}/conversations/private_chats/{conversationId}:                   # ritorna l'id della singola "Private Chat" --> nel path
+  /wasatext/{username}/private_chats/{conversationId}:                  
     parameters:                                             # definisco i parameters UNA SOLA VOLTA a livello di path --> non lo ripeto per ogni operazione
     - name: username
       in: path
@@ -816,19 +800,21 @@ paths:
       schema:
         type: string
         minLength: 3                 
-        maxLength: 30              
-        description: Username of the user loggin in this session
-        pattern: '^[a-zA-Z0-9._~-]+$'
+        maxLength: 30     
+        pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'         
+      description: Username of the user loggin in this session
     - name: conversationId
       in: path
       required: true
-      description: Conversation unique identifier
       schema:
         type: string
         format: uuid
-        description: Unique Conversation ID
+        minLength: 36     
+        maxLength: 36      
+        pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+      description: Unique Conversation Id
 
-    get:
+    get:                                  # ritorna l'id della singola "Private Chat" --> nel path
       operationId: getPrivateChatById
       summary: Get a specific Private Chat
       description: Get a specific Private Chat by id
@@ -842,14 +828,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/PrivateChat"
               example:
-                id: "7e2f13e0-8d9f-4df8-b1a1-4a56e6b943b2"
-                recipientUser:
-                  id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
-                  username: "martina_02"
-                  profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
-                  status: "online"
-                  dtRegistration: "2024-02-20T13:00:00Z"
-                  lastTimeOnline: "2025-11-05T09:55:00Z"
+                id: "f4a8c2d1-0e9b-41b6-bd3c-527ef43ac821"
+                recipientUser: "2e1f9b33-5c7a-4af8-b83e-9f12aa49d223"
                 snippet: "Sure, let's meet at 6 PM!"
                 dtLastMessage: "2025-11-06T14:25:43Z"
                 userPhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
@@ -885,13 +865,13 @@ paths:
   ########################################
   # ENDPOINTS di Conversazioni di Gruppo.
   ########################################
-  /wasatext/{username}/conversations/groups:
+  /wasatext/{username}/groups:
     post:                                                   # Creo un nuovo gruppo
       operationId: createNewGroup
       summary: Create a new group Chat
       description: A new group Chat is created
       tags:
-        - Group Chat
+        - Group Chats
       parameters:
         - name: username
           in: path
@@ -901,13 +881,13 @@ paths:
             minLength: 3                 
             maxLength: 30             
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/NewGroupChat"
+              $ref: "#/components/schemas/GroupChatPrototype"
       responses:
         '201':
           description: Group created successfully
@@ -916,23 +896,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/GroupChat"
               example:
-                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                id: "c1f09a5d-44e2-4f7b-9a33-82dfcc19b4fe"
                 groupName: "BestShooters"
                 groupDescription: "This group is only for people who don't shoot bricks :)"
                 groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
                 members:
-                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
-                    username: "fil_dev"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
-                  - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
-                    username: "martina_02"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
-                  - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
-                    username: "leo_snk"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
+                  - "5c2e7f88-1b56-4d3f-934b-d18fc2092aa4"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
                 admins:
-                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
-                dtCreated: "2025-11-06T15:09:58Z"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
                 snippet: "Welcome to BestShooters!"
                 dtLastMessage: "2025-11-06T15:10:23Z"
         '400':  #BadRequest
@@ -943,7 +916,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /wasatext/{username}/conversations/groups/{conversationId}:
+  /wasatext/{username}/groups/{conversationId}:
     get:                                                      # ottengo una conversazione di Gruppo specifica in base all'id
       operationId: getGroupChat
       summary: Get a specific group Chat
@@ -959,14 +932,17 @@ paths:
             minLength: 3                 
             maxLength: 30  
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique Conversation Group Id
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique Conversation Id
       responses:
         '200':
           description: Group Chat details
@@ -975,23 +951,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/GroupChat"
               example:
-                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                id: "5c2e7f88-1b56-4d3f-934b-d18fc2092aa4"
                 groupName: "BestShooters"
                 groupDescription: "This group is only for people who don't shoot bricks :)"
                 groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
                 members:
-                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
-                    username: "fil_dev"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
-                  - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
-                    username: "martina_02"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
-                  - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
-                    username: "leo_snk"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
+                  - "5c2e7f88-1b56-4d3f-934b-d18fc2092aa4"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
                 admins:
-                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
-                dtCreated: "2025-11-06T15:09:58Z"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
                 snippet: "Welcome to BestShooters!"
                 dtLastMessage: "2025-11-06T15:10:23Z"
         '404':
@@ -1002,7 +971,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /wasatext/{username}/conversations/groups/{conversationId}/members:
+  /wasatext/{username}/groups/{conversationId}/members:
     post:                                                     # Aggiungo un Membro al Gruppo
       operationId: addToGroup
       summary: Add members to a group
@@ -1018,14 +987,17 @@ paths:
             minLength: 3                 
             maxLength: 30  
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique ConversationId
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique ConversationId
       requestBody:                                            # corpo input della richiesta
         required: true
         content:
@@ -1033,33 +1005,23 @@ paths:
             schema:
               $ref: "#/components/schemas/AddMembersRequest"
       responses:
-        '200':
+        '201':
           description: Members added successfully
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/GroupChat"
               example:
-                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                id: "d8f1a7c3-6e29-430a-bb42-73a92fe83d6c"
                 groupName: "BestShooters"
                 groupDescription: "This group is only for people who don't shoot bricks :)"
                 groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
                 members:
-                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
-                    username: "fil_dev"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
-                  - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
-                    username: "martina_02"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
-                  - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
-                    username: "leo_snk"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
-                  - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
-                    username: "giulia_m"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
+                  - "5c2e7f88-1b56-4d3f-934b-d18fc2092aa4"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
                 admins:
-                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
-                dtCreated: "2025-11-06T15:09:58Z"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
                 snippet: "Welcome to BestShooters!"
                 dtLastMessage: "2025-11-06T15:10:23Z"
         '403':
@@ -1076,7 +1038,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /wasatext/{username}/conversations/groups/{conversationId}/leave:
+  /wasatext/{username}/groups/{conversationId}/leave:
     post:
       operationId: leaveGroup
       summary: Leave a group Chat
@@ -1092,14 +1054,17 @@ paths:
             minLength: 3                 
             maxLength: 30   
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
           schema: 
             type: string
             format: uuid
-            description: Unique Conversation Id
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique Conversation Id
       responses:
         '204':    # No Content
           description: Successfully left the group
@@ -1118,7 +1083,7 @@ paths:
 
 
 
-  /wasatext/{username}/conversations/groups/{conversationId}/admins:
+  /wasatext/{username}/groups/{conversationId}/admins:
     post:                                                           # Rendere Admin un membro del gruppo
       operationId: makeAdmin
       summary: Make a user an admin of the group
@@ -1134,14 +1099,17 @@ paths:
             minLength: 3                 
             maxLength: 30      
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique Conversation Id
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique Conversation Id
       requestBody:
         required: true
         content: 
@@ -1149,34 +1117,24 @@ paths:
             schema:
               $ref: "#/components/schemas/AdminRequest"
       responses:
-        '200':
+        '201':
           description: User promoted to admin successfully
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/GroupChat"
               example:
-                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                id: "d8f1a7c3-6e29-430a-bb42-73a92fe83d6c"
                 groupName: "BestShooters"
                 groupDescription: "This group is only for people who don't shoot bricks :)"
                 groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
                 members:
-                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
-                    username: "fil_dev"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
-                  - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
-                    username: "martina_02"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
-                  - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
-                    username: "leo_snk"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
-                  - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
-                    username: "giulia_m"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
+                  - "5c2e7f88-1b56-4d3f-934b-d18fc2092aa4"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
                 admins:
-                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"   # Filippo (admin originario)
-                  - "c5b9289e-cc09-4c32-9b5f-12629faecb8d"   # Martina (nuova admin)
-                dtCreated: "2025-11-06T15:09:58Z"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"   # Filippo (admin originario)
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"   # Martina (nuova admin)
                 snippet: "Welcome to BestShooters!"
                 dtLastMessage: "2025-11-06T15:10:23Z"
         '400':
@@ -1194,7 +1152,7 @@ paths:
 
 
 
-  /wasatext/{username}/conversations/groups/{conversationId}/admins/{usernameAdmin}:
+  /wasatext/{username}/groups/{conversationId}/admins/{usernameAdmin}:
     delete:                                                                   # Rimuovo lo stato di Admin da un membro del gruppo
       operationId: removeAdminStatus
       summary: Remove admin status from a user
@@ -1210,22 +1168,26 @@ paths:
             minLength: 3                 
             maxLength: 30  
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique Conversation ID
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique Conversation ID
         - name: usernameAdmin
           in: path
           required: true
           schema:
             type: string
-            description: User username
             minLength: 3
             maxLength: 30
+            pattern: '^[a-zA-Z0-9._~-]+$'
+          description: User username
       responses:
         '200':
           description: Admin status removed successfully
@@ -1234,26 +1196,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/GroupChat"
               example:
-                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                id: "d8f1a7c3-6e29-430a-bb42-73a92fe83d6c"
                 groupName: "BestShooters"
                 groupDescription: "This group is only for people who don't shoot bricks :)"
                 groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
                 members:
-                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
-                    username: "fil_dev"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
-                  - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
-                    username: "martina_02"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
-                  - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
-                    username: "leo_snk"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
-                  - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
-                    username: "giulia_m"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
+                  - "5c2e7f88-1b56-4d3f-934b-d18fc2092aa4"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
                 admins:
-                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"    # filippo, martina è stata tolta da admin!
-                dtCreated: "2025-11-06T15:09:58Z"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
                 snippet: "Welcome to BestShooters!"
                 dtLastMessage: "2025-11-06T15:10:23Z"
         '400':
@@ -1270,7 +1222,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /wasatext/{username}/conversations/groups/{conversationId}/name:
+  /wasatext/{username}/groups/{conversationId}/name:
     put:                                                              # modifico nome  gruppo
       operationId: setGroupName
       summary: Update group name
@@ -1286,14 +1238,17 @@ paths:
             minLength: 3                 
             maxLength: 30  
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique Conversation Id
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique Conversation Id
       requestBody:
         required: true
         content:
@@ -1306,6 +1261,7 @@ paths:
                   type: string
                   minLength: 1
                   maxLength: 200
+                  pattern: '.*'
                   description: Group Name
       responses:
         '200':
@@ -1315,27 +1271,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/GroupChat"
               example:
-                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                id: "d8f1a7c3-6e29-430a-bb42-73a92fe83d6c"
                 groupName: "BestShooters"
                 groupDescription: "This group is only for people who don't shoot bricks :)"
                 groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
                 members:
-                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
-                    username: "fil_dev"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
-                  - id: "c5b9289e-cc09-4c32-9b5f-12629faecb8d"
-                    username: "martina_02"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/martina.jpg"
-                  - id: "df12c47e-9f7c-4b30-b56c-07a3b1f2a111"
-                    username: "leo_snk"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/leonardo.jpg"
-                  - id: "e2f8b1c3-1c5d-4a09-bc2a-06a3b12f77a4"
-                    username: "giulia_m"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/silvia_cel.jpg"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
+                  - "5c2e7f88-1b56-4d3f-934b-d18fc2092aa4"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
                 admins:
-                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"   
-                  - "c5b9289e-cc09-4c32-9b5f-12629faecb8d"   
-                dtCreated: "2025-11-06T15:09:58Z"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"  
+                  - "9a74bc10-3f2e-4b19-a8c7-3b9e2df67611"  
                 snippet: "Welcome to BestShooters!"
                 dtLastMessage: "2025-11-06T15:10:23Z"
 
@@ -1347,7 +1293,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /wasatext/{username}/conversations/groups/{conversationId}/description:                                  # modifico la descrizione del gruppo
+  /wasatext/{username}/groups/{conversationId}/description:                                  # modifico la descrizione del gruppo
     put:
       operationId: setGroupDescription
       summary: Update group description
@@ -1363,14 +1309,17 @@ paths:
             minLength: 3                 
             maxLength: 30  
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique Conversation Id
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique Conversation Id
       requestBody:
         required: true
         content:
@@ -1383,6 +1332,7 @@ paths:
                   type: string
                   minLength: 0
                   maxLength: 1000
+                  pattern: '.*'
                   description: New group description
               required:
                 - groupDescription
@@ -1394,17 +1344,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/GroupChat"
               example:
-                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                id: "9a74bc10-3f2e-4b19-a8c7-3b9e2df67611"
                 groupName: "BestShooters"
                 groupDescription: "Updated: This group is for elite shooters only! 🏀🔥"
                 groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters.jpg"
                 members:
-                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
-                    username: "fil_dev"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
+                  - "5c2e7f88-1b56-4d3f-934b-d18fc2092aa4"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
                 admins:
-                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
-                dtCreated: "2025-11-06T15:09:58Z"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
                 snippet: "Group description updated"
                 dtLastMessage: "2025-11-09T11:20:15Z"
         '403':
@@ -1423,7 +1372,7 @@ paths:
 
 
 
-  /wasatext/{username}/conversations/groups/{conversationId}/photo:                              # modifico la foto del gruppo
+  /wasatext/{username}/groups/{conversationId}/photo:                              # modifico la foto del gruppo
     put:
       operationId: setGroupPhoto
       summary: Update group photo
@@ -1439,24 +1388,31 @@ paths:
             minLength: 3                 
             maxLength: 30   
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique Group Chat Id
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique Group Chat Id
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              description: group photo
               properties:
                 groupPhoto:
                   type: string
                   format: url
+                  minLength: 10
+                  maxLength: 500
+                  pattern: '^https?:\/\/[^\s\/$.?#].[^\s]*$'
                   description: URL to new group photo
               required: 
                 - groupPhoto
@@ -1468,17 +1424,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/GroupChat"
               example:
-                id: "9d8c7b42-6e1f-4e2c-bb4e-9a89f125f33a"
+                id: "d8f1a7c3-6e29-430a-bb42-73a92fe83d6c"
                 groupName: "BestShooters"
                 groupDescription: "This group is only for people who don't shoot bricks :)"
                 groupPhoto: "https://web-chat-app.com/groups/profile-images/bestshooters_new.jpg"
                 members:
-                  - id: "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
-                    username: "fil_dev"
-                    profilePhoto: "https://web-chat-app.com/users/profile-images/filippo.jpg"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
+                  - "5c2e7f88-1b56-4d3f-934b-d18fc2092aa4"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
                 admins:
-                  - "a8e92b10-742f-46c1-a4a5-f7c927fc73d2"
-                dtCreated: "2025-11-06T15:09:58Z"
+                  - "1a9b0c34-85f2-4e6d-92ee-4f7a18d0c2b5"
                 snippet: "Group photo updated"
                 dtLastMessage: "2025-11-09T11:25:30Z"
         '403':
@@ -1497,13 +1452,13 @@ paths:
 
 
 
-  /wasatext/{username}/conversations/groups/{conversationId}/members/{userId}:
+  /wasatext/{username}/groups/{conversationId}/members/{userId}:
     delete:                                                         # Si rimuove un membro dal gruppo
       operationId: removeMember
       summary: Remove a member from the group
       description: Only admins can remove members. Admins cannot be removed, they must be demoted first.
       tags:
-        - Group Chat
+        - Group Chats
       parameters:
         - name: username
           in: path
@@ -1513,21 +1468,27 @@ paths:
             minLength: 3                 
             maxLength: 30    
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique Conversation ID
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique Conversation ID
         - name: userId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique User ID
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique User ID
       responses:
         '204':
           description: Member removed successfully
@@ -1566,14 +1527,17 @@ paths:
           minLength: 3                 
           maxLength: 30   
           pattern: '^[a-zA-Z0-9._~-]+$'
-          description: Username of the user loggin in this session
+        description: Username of the user loggin in this session
       - name: conversationId
         in: path
         required: true
         schema:
           type: string
           format: uuid
-          description: Unique Conversation ID
+          minLength: 36     
+          maxLength: 36      
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        description: Unique Conversation ID
     
     get:                                                # ritorna i messaggi di una specifica conversazione
       operationId: getConversation
@@ -1588,53 +1552,39 @@ paths:
             application/json:
               schema:
                 type: object
+                description: List of messages
                 properties:
                   messages:
                     type: array
                     items:
                       $ref: "#/components/schemas/Message"
                     minItems: 1 # in ogni conversazione c'è almeno 1 messaggio (se una conversazione è iniziata, vuol dire che c'è almeno un messaggio --> per come l'ho implementata)
+                    maxItems: 100000
                     description: Messages in reverse chronological order in this Conversation
               example:
                 messages:
-                  - id: "e1f7b4a2-31e6-4b3d-99a1-4cc3c3e2f8c7"
+                  - id: "d8f1a7c3-6e29-430a-bb42-73a92fe83d6c"
                     contentMess: "Hey everyone 👋 ready for tonight’s match?"
                     timestamp: "2025-11-05T10:25:43Z"
                     statusInfo: "read"
-                    conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
+                    conversationId: "e34f0b12-52a9-489c-87ce-a91e0fb4476d"
                     senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
-                    senderUsername: "matthew"
-                    # deleted: false
-                    forwarded: false
-                    reactions:
-                      - emoji: "🔥"
-                        userId: "bd9824e9-3b41-4a6c-b51a-81a7768b9f21"
-                      - emoji: "👍"
-                        userId: "e44f18a9-6cf2-4f19-b5a9-2f1de7fbc011"
 
                   - id: "c8b6d99b-7d52-4a4d-b88a-f82f62221f31"
                     contentMess: "Absolutely! Let’s go ⚽🔥"
                     timestamp: "2025-11-05T10:27:12Z"
                     statusInfo: "delivered"
-                    conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
-                    senderUserId: "b9d2a12e-9b52-43a9-8fd0-1a552f937f82"
-                    senderUsername: "lucas"
-                    forwarded: false
-                    reactions:
-                      - emoji: "💪"
-                        userId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
+                    conversationId: "e34f0b12-52a9-489c-87ce-a91e0fb4476d"
+                    senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
+                  
 
                   - id: "7bfa4e12-5d93-43a4-b1d8-f61cb211d87b"
                     contentMess: "Sending you the lineup PDF 📄"
                     timestamp: "2025-11-05T10:30:01Z"
                     statusInfo: "read"
-                    conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
+                    conversationId: "e34f0b12-52a9-489c-87ce-a91e0fb4476d"
                     senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
-                    senderUsername: "matthew"
-                    # deleted: false
-                    forwarded: true
-                    reactions: []
-                hasMore: true # esiston messaggi più vecchi che possono essere caricati con una altra chiama "?before="
+                    
         '403':
           description: User is not part of this conversation
           content:
@@ -1664,15 +1614,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/Message"
               example:
-                id: "b6a8c2d7-52f1-4c1e-9e54-41b3e1a5e7f4"
+                id: "e34f0b12-52a9-489c-87ce-a91e0fb4476d"
                 contentMess: "Hey guys, I just created the group event for tonight 🎉"
                 timestamp: "2025-11-05T10:48:31Z"
                 statusInfo: "read"
-                conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
-                senderUserId: "9f2b3a17-4c9d-45b8-bc73-f4c0a9baf219"
-                senderUsername: "filippo"
-                forwarded: false
-                reactions: []
+                conversationId: "e34f0b12-52a9-489c-87ce-a91e0fb4476d"
+                senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
         '403':
           description: User is not part of this conversation
           content:
@@ -1691,21 +1638,27 @@ paths:
             minLength: 3                 
             maxLength: 30  
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique Conversation ID
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique Conversation ID
         - name: messageId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique Message ID
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique Message ID
   
     patch:                                                                        # Modifico un Messaggio
       operationId: editMessage
@@ -1716,7 +1669,7 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          application/json-patch+json:
             schema:
               $ref: "#/components/schemas/MessageUpdate"
       responses:
@@ -1727,19 +1680,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/Message"
               example:
-                id: "b6a8c2d7-52f1-4c1e-9e54-41b3e1a5e7f4"
+                id: "c1f09a5d-44e2-4f7b-9a33-82dfcc19b4fe"
                 contentMess: "Hey guys, change of plans — meeting at 8:30 instead of 8 ⏰"
                 timestamp: "2025-11-05T11:10:45Z"
                 statusInfo: "delivered"
-                conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
-                senderUserId: "9f2b3a17-4c9d-45b8-bc73-f4c0a9baf219"
-                senderUsername: "filippo"
-                forwarded: false
-                reactions:
-                  - emoji: "👍"
-                    userId: "d71a21d9-bf8e-4e5e-a1b4-98e12d8e2b67"
-                  - emoji: "😂"
-                    userId: "c12a0f4f-59b2-4d89-95ac-5b3a8d40b944"
+                conversationId: "e34f0b12-52a9-489c-87ce-a91e0fb4476d"
+                senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
+
         '403':
           description: User is not the sender of this message
           content:
@@ -1777,7 +1724,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-  /wasatext/{username}/conversations/{conversationId}/messages/forward:
+  /wasatext/{username}/conversations/{conversationId}/messages/{messageId}/forward:
     post:                                                             # Inoltrare un messaggio
       operationId: forwardMessage
       summary: Forward a message to another conversation
@@ -1793,14 +1740,27 @@ paths:
             minLength: 3                 
             maxLength: 30              
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique Conversation ID
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique Conversation ID
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique Message ID
       requestBody:
         required: true
         content:
@@ -1816,16 +1776,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/Message"
               example:
-                id: "d8a2f96e-2b89-4f1d-8a32-94e0a22f13cc"
-                timestamp: "2025-11-05T15:10:42Z"
-                senderUserId: "b1f3a6c4-9d21-40de-94ef-2c84f15c3279"
-                statusInfo: "read"
-                conversationId: "6e7f3d3a-4b81-4cf5-ae41-f6b6e85a0021"
+                id: "2e1f9b33-5c7a-4af8-b83e-9f12aa49d223"
                 contentMess: "📸 Check out this photo!"
-                senderUsername: "filippo21"
-                # deleted: false
-                forwarded: true
-                reactions: []
+                timestamp: "2025-11-05T15:10:42Z"
+                statusInfo: "read"
+                conversationId: "e34f0b12-52a9-489c-87ce-a91e0fb4476d"
+                senderUserId: "d8f1a7c3-6e29-430a-bb42-73a92fe83d6c"
+
         '403':
           description: User is not part of source or target conversation
           content:
@@ -1857,21 +1814,27 @@ paths:
             minLength: 3                 
             maxLength: 30   
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique Conversation ID
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique Conversation ID
         - name: messageId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique Message ID
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique Message ID
             
     post:                                       #Aggiungere una Reazione a un messaggio specifico
       operationId: commentMessage
@@ -1893,11 +1856,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Reaction"
               example:
-                reactionId: "a4c1d2e3-f567-8901-2345-6789abcdef01"              ## id univoco reaction
-                emoji: "🔥"                                                     ## emoji che rappresenta la reazione aggiunta
-                timestamp: "2025-11-05T14:22:31Z"                               ## momento esatto (in UTC) in cui la reazione è stata aggiunta.
-                messToReactId: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
-                senderUserId: "9b5e7d1c-8a6f-4e0d-b2c7-1d9e8e3f1234"            ## UUID utente che ha reagito
+                reactionId: "d8f1a7c3-6e29-430a-bb42-73a92fe83d6c"              ## id univoco reaction
+                emoji: "🔥"                                                     ## emoji che rappresenta la reazione aggiunta           ## UUID utente che ha reagito
                 senderUsername: "filippo_dev"                                   ## nome utente che ha reagito
         '400':
           description: User already reacted to this message
@@ -1953,24 +1913,12 @@ paths:
                     description: All the reactions of this message
               example:
                 reactions:
-                  - reactionId: "c1f3a7d2-4b9e-4568-8e23-7890abcd1234"
+                  - reactionId: "9a74bc10-3f2e-4b19-a8c7-3b9e2df67611"
                     emoji: "❤️"
-                    timestamp: "2025-11-05T10:12:45Z"
-                    messToReactId: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
-                    senderUserId: "b7e9d5c2-1a4f-4b21-8f9b-6c1e7a8b9e01"
                     senderUsername: "martina_98"
-                  - reactionId: "f9b8a2e4-7c65-4a91-b302-3456def789ab"
+                  - reactionId: "5c2e7f88-1b56-4d3f-934b-d18fc2092aa4"
                     emoji: "😂"
-                    timestamp: "2025-11-05T10:14:02Z"
-                    messToReactId: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
-                    senderUserId: "d3a1e4b7-8c9f-4e21-9a3d-5b6e8f7a0c12"
                     senderUsername: "luca_dev"
-                  - reactionId: "a2d9b7e3-c456-4f8a-b321-9e0a1b2c3d45"
-                    emoji: "🔥"
-                    timestamp: "2025-11-05T10:15:18Z"
-                    messToReactId: "4f8s7d4c-6a4f-2e0d-b1c7-2d7e8e8f1943"
-                    senderUserId: "9b5e7d1c-8a6f-4e0d-b2c7-1d9e8e3f1234"
-                    senderUsername: "filippo_dev"
 
 
   #####################################
@@ -1994,7 +1942,7 @@ paths:
             minLength: 3                 
             maxLength: 30         
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
       responses:
         '200':
           description: Current user details
@@ -2003,12 +1951,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
               example:
-                id: "f2a1b7d4-9c5e-4b2e-a6d3-8e1a9c7d5b22"
+                id: "f4a8c2d1-0e9b-41b6-bd3c-527ef43ac821"
                 username: "filippo_dev"
                 profilePhoto: "https://web-chat-app.com/users/profile-images/filippo_dev.jpg"
-                status: "Coding some new features 🚀"
-                dtRegistration: "2024-03-12T14:25:47Z"
-                lastTimeOnline: "2025-11-05T09:42:10Z"
 
 
   /wasatext/{username}/profile/status:
@@ -2028,11 +1973,11 @@ paths:
             minLength: 3                 
             maxLength: 30         
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
       requestBody:
         required: true
         content:
-          application/json:
+          application/json-patch+json:
             schema:
               type: object
               description: Update profile status 
@@ -2041,6 +1986,7 @@ paths:
                   type: string
                   minLength: 0
                   maxLength: 200
+                  pattern: '.*'
                   description: User status message
       responses:
         '200':
@@ -2050,22 +1996,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
               example:
-                id: "9e7f5a61-8b24-4c2a-bb5a-1b1e2b6e91cd"
+                id: "f4a8c2d1-0e9b-41b6-bd3c-527ef43ac821"
                 username: "filippo_dev"
                 profilePhoto: "https://web-chat-app.com/users/profile-images/filippo_dev_new.jpg"
-                status: "Taking a coffee break ☕"
-                dtRegistration: "2024-03-12T14:25:47Z"
-                lastTimeOnline: "2025-11-05T10:12:30Z"
 
 
-  /wasatext/{username}/users/search:                                          # Ricercare un utente tra tutti gli utenti registrati nella web app
+  /wasatext/{username}/user_search:                                          # Ricercare un utente tra tutti gli utenti registrati nella web app
     get:
       operationId: searchUser
       summary: Search for a user by username
-      description: |-
-        Retrieves a user's profile information. 
-        If the user exists, their public details are returned; otherwise, 
-        an error response is provided.
+      description: Retrieves a single user profile by searching their unique username via query parameter
       tags:
         - Users
       parameters:
@@ -2077,14 +2017,15 @@ paths:
             minLength: 3                 
             maxLength: 30  
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
-        - name: usernameSearched
+          description: Username of the user loggin in this session
+        - name: usernameSearched    # Con questo parametro di query vado a filtrare la lista 
           in: query
           required: true
           schema:
             type: string
             minLength: 3
             maxLength: 30
+            pattern: '^[a-zA-Z0-9._~-]+$'
           description: Username to search for
       responses:
         '200':
@@ -2094,12 +2035,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
               example:
-                id: "550e8400-e29b-41d4-a716-446655440000"
+                id: "f4a8c2d1-0e9b-41b6-bd3c-527ef43ac821"
                 username: "steph_curry"
                 profilePhoto: "https://web-chat-app.com/users/profile-images/steph_curry.png"
-                status: "Available, write to me! :)"
-                dtRegistration: "2024-11-02T14:25:30Z"
-                lastTimeOnline: "2025-11-05T09:48:10Z"
+
         '404':
           description: User Not Found
           content:
@@ -2128,7 +2067,7 @@ paths:
             minLength: 3                 
             maxLength: 30
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
       requestBody:
         required: true
         content:
@@ -2144,12 +2083,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
               example:
-                id: "550e8400-e29b-41d4-a716-446655440000"
+                id: "f4a8c2d1-0e9b-41b6-bd3c-527ef43ac821"
                 username: "Ryan_Ted"
                 profilePhoto: "https://web-chat-app.com/users/profile-images/ryan_ted.png"
-                status: "Focused on this project :)"
-                dtRegistration: "2024-11-02T14:25:30Z"
-                lastTimeOnline: "2025-11-05T10:12:45Z"
 
         '400':
           description: Username already exists
@@ -2180,17 +2116,21 @@ paths:
             minLength: 3                 
             maxLength: 30 
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              description: profile photo
               properties:
                 profilePhoto:
                   type: string
                   format: url
+                  minLength: 10
+                  maxLength: 500
+                  pattern: '^https?:\/\/[^\s\/$.?#].[^\s]*$'
                   description: URL to new profile photo
               required:
                 - profilePhoto
@@ -2202,12 +2142,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
               example:
-                id: "550e8400-e29b-41d4-a716-446655440000"
+                id: "f4a8c2d1-0e9b-41b6-bd3c-527ef43ac821"
                 username: "filippo_dev"
                 profilePhoto: "https://web-chat-app.com/users/profile-images/filippo_new_photo.png"
-                status: "Focused on this project :)"
-                dtRegistration: "2024-11-02T14:25:30Z"
-                lastTimeOnline: "2025-11-10T10:30:15Z"
         '400':
           description: Invalid URL format
           content:
@@ -2233,14 +2170,17 @@ paths:
             minLength: 3                 
             maxLength: 30    
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
         - name: usernameProfileSearched
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique User ID
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique User ID
       responses:
         '200':
           description: User profile
@@ -2249,12 +2189,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
               example:
-                id: "9e7f5a61-8b24-4c2a-bb5a-1b1e2b6e91cd"
+                id: "f4a8c2d1-0e9b-41b6-bd3c-527ef43ac821"
                 username: "filippo_dev"
                 profilePhoto: "https://web-chat-app.com/users/profile-images/filippo_dev_new.jpg"
-                status: "Taking a coffee break ☕"
-                dtRegistration: "2024-03-12T14:25:47Z"
-                lastTimeOnline: "2025-11-05T10:12:30Z"
         '404':
           description: User not found
           content:
@@ -2281,21 +2218,27 @@ paths:
           minLength: 3                 
           maxLength: 30 
           pattern: '^[a-zA-Z0-9._~-]+$'
-          description: Username of the user loggin in this session
+        description: Username of the user loggin in this session
       - name: conversationId
         in: path
         required: true
         schema:
           type: string
           format: uuid
-          description: Unique Conversation ID
+          minLength: 36     
+          maxLength: 36      
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        description: Unique Conversation ID
       - name: messageId
         in: path
         required: true
         schema:
           type: string
           format: uuid
-          description: Unique Message ID
+          minLength: 36     
+          maxLength: 36      
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        description: Unique Message ID
     
     post:                                                                             # Aggiungo un messaggio tra i "Preferiti" in questa conversazione specifica
       operationId: addMessageToFavourites
@@ -2359,20 +2302,17 @@ paths:
             minLength: 3                 
             maxLength: 30  
             pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
+          description: Username of the user loggin in this session
         - name: conversationId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            description: Unique Conversation ID
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 50
-          description: Number of favourites to return
+            minLength: 36     
+            maxLength: 36      
+            pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          description: Unique Conversation ID
       responses:
         '200':
           description: List of favourite messages
@@ -2380,27 +2320,28 @@ paths:
             application/json:
               schema:
                 type: object
+                description: List of favourite messages
                 properties:
                   favourites:
                     type: array
                     items:
-                      $ref: "#/components/schemas/Message"
-                    description: Favourite messages in this conversation
+                      type: string
+                      format: uuid
+                      minLength: 36     
+                      maxLength: 36      
+                      pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+                      description: Favourite Meesage Id of this conversation
+                    minItems: 0
+                    maxItems: 100000
+                    description: Favourite message IDs in this conversation
                   total:
                     type: integer
                     description: Total number of favourites in this conversation
               example:
-                total: 3
                 favourites:
-                  - id: "e1f7b4a2-31e6-4b3d-99a1-4cc3c3e2f8c7"
-                    contentMess: "Important: Meeting at 5 PM tomorrow"
-                    timestamp: "2025-11-05T10:25:43Z"
-                    statusInfo: "read"
-                    conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
-                    senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
-                    senderUsername: "matthew"
-                    forwarded: false
-                    reactions: []
+                  - "f4a8c2d1-0e9b-41b6-bd3c-527ef43ac821"
+                  - "2e1f9b33-5c7a-4af8-b83e-9f12aa49d223"
+                  - "9a74bc10-3f2e-4b19-a8c7-3b9e2df67611"
         '403':
           description: User is not part of this conversation
           content:
@@ -2409,71 +2350,3 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 
-
-
-  /wasatext/{username}/favourites:
-    get:                                                                                  # Endpoint Globale --> tutti i preferiti dell'utente.
-      operationId: getAllUserFavourites
-      summary: Get all favourite messages across all conversations
-      description: |-
-        Returns all messages marked as favourite by the authenticated user,
-        grouped by conversation with context information
-      tags:
-        - Favourites
-      parameters:
-        - name: username
-          in: path
-          required: true
-          schema:
-            type: string
-            minLength: 3                 
-            maxLength: 30    
-            pattern: '^[a-zA-Z0-9._~-]+$'
-            description: Username of the user loggin in this session
-
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 50
-          description: Number of favourites to return
-      responses:
-        '200':
-          description: List of all favourite messages with context
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  favourites:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/FavouriteMessageWithContext"
-                    description: All favourite messages with conversation context
-                  total:
-                    type: integer
-                    description: Total number of favourites
-              example:
-                total: 5
-                favourites:
-                  - favourite:
-                      id: "f1a2b3c4-5d6e-7f8g-9h0i-1j2k3l4m5n6o"
-                      userId: "9f2b3a17-4c9d-45b8-bc73-f4c0a9baf219"        # es. Filippo
-                      messageId: "e1f7b4a2-31e6-4b3d-99a1-4cc3c3e2f8c7"
-                      conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
-                      dateMarked: "2025-11-08T15:30:00Z"
-                    message:
-                      id: "e1f7b4a2-31e6-4b3d-99a1-4cc3c3e2f8c7"
-                      contentMess: "Don't forget the deadline is Friday! 📅"
-                      timestamp: "2025-11-05T10:25:43Z"
-                      statusInfo: "read"
-                      conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
-                      senderUserId: "a3f1c8b2-47e9-4db5-93a8-921ddbb512fc"
-                      senderUsername: "marco_dev"
-                      forwarded: false
-                      reactions: []
-                    conversationInfo:
-                      conversationId: "a92d94b8-6fa3-46c3-a2e3-0e8b8a3c7e2f"
-                      conversationType: "group"
-                      conversationName: "Work Team"
-                      conversationPhoto: "https://web-chat-app.com/groups/profile-images/work_team.jpg"
