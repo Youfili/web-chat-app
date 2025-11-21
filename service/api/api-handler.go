@@ -9,7 +9,7 @@ func (rt *_router) Handler() http.Handler {
 
 	// Register routes
 	rt.router.GET("/liveness", rt.liveness)
-	rt.router.GET("/context", rt.wrap(rt.getContextReply)
+	rt.router.GET("/context", rt.wrap(rt.getContextReply))
 
 	// ------------------------------------------------
 	// LOGIN & REGISTRATION
@@ -33,10 +33,12 @@ func (rt *_router) Handler() http.Handler {
 	rt.router.PUT("/wasatext/:username/profile/photo", rt.setMyPhoto)
 
 	// Search user (Query param: ?usernameSearched=...)
+	// Returns a list of users (fuzzy search)
 	rt.router.GET("/wasatext/:username/user_search", rt.searchUser)
 
-	// Get another user's profile by ID
-	rt.router.GET("/wasatext/:username/users/:usernameProfileSearched", rt.getUserProfile)
+	// Get another user's profile by username
+	// Parameter name aligned with YAML: usernameSearched
+	rt.router.GET("/wasatext/:username/users/:usernameSearched", rt.getUserProfile)
 
 	// ------------------------------------------------
 	// CONVERSATIONS (General List)
@@ -78,7 +80,8 @@ func (rt *_router) Handler() http.Handler {
 	rt.router.POST("/wasatext/:username/groups/:conversationId/admins", rt.makeAdmin)
 
 	// Remove admin status
-	rt.router.DELETE("/wasatext/:username/groups/:conversationId/admins/:usernameAdmin", rt.removeAdminStatus)
+	// Parameter aligned with YAML: userId (UUID)
+	rt.router.DELETE("/wasatext/:username/groups/:conversationId/admins/:userId", rt.removeAdminStatus)
 
 	// Update group name
 	rt.router.PUT("/wasatext/:username/groups/:conversationId/name", rt.setGroupName)
@@ -98,13 +101,16 @@ func (rt *_router) Handler() http.Handler {
 	// Send new message
 	rt.router.POST("/wasatext/:username/conversations/:conversationId/messages", rt.sendMessage)
 
+	// Mark messages as read (Blue ticks) - ADDED
+	rt.router.PUT("/wasatext/:username/conversations/:conversationId/read_status", rt.markMessagesAsRead)
+
 	// Edit message
 	rt.router.PATCH("/wasatext/:username/conversations/:conversationId/messages/:messageId", rt.editMessage)
 
 	// Delete message
 	rt.router.DELETE("/wasatext/:username/conversations/:conversationId/messages/:messageId", rt.deleteMessage)
 
-	// Forward message (Updated path structure)
+	// Forward message
 	rt.router.POST("/wasatext/:username/conversations/:conversationId/messages/:messageId/forward", rt.forwardMessage)
 
 	// ------------------------------------------------
@@ -118,20 +124,6 @@ func (rt *_router) Handler() http.Handler {
 
 	// Get all reactions for a message
 	rt.router.GET("/wasatext/:username/conversations/:conversationId/messages/:messageId/reactions", rt.getAllMessageReactions)
-
-	// ------------------------------------------------
-	// FAVOURITES
-	// ------------------------------------------------
-	// Get favourites in conversation
-	rt.router.GET("/wasatext/:username/conversations/:conversationId/favourites", rt.getConversationFavourites)
-
-	// Add message to favourites
-	rt.router.POST("/wasatext/:username/conversations/:conversationId/messages/:messageId/favourite", rt.addMessageToFavourites)
-
-	// Remove message from favourites
-	rt.router.DELETE("/wasatext/:username/conversations/:conversationId/messages/:messageId/favourite", rt.removeMessageFromFavourites)
-
-
 
 	return rt.router
 }
