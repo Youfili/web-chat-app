@@ -23,25 +23,24 @@ func (rt *_router) Handler() http.Handler {
 	// Get current user profile
 	rt.router.GET("/wasatext/:username/profile", rt.myProfileDetails)
 
-	// Update current user status (PATCH /status)
+	// Update current user status
 	rt.router.PATCH("/wasatext/:username/profile/status", rt.modifyProfileStatus)
 
-	// Update username (PUT /username)
+	// Update username
 	rt.router.PUT("/wasatext/:username/profile/username", rt.setMyUserName)
 
-	// Update profile photo (PUT /photo)
+	// Update profile photo
 	rt.router.PUT("/wasatext/:username/profile/photo", rt.setMyPhoto)
 
-	// Search user (Query param: ?usernameSearched=...)
-	// Returns a list of users (fuzzy search)
+	// Search user
+	// Returns a list of users
 	rt.router.GET("/wasatext/:username/user_search", rt.searchUser)
 
 	// Get another user's profile by username
-	// Parameter name aligned with YAML: usernameSearched
 	rt.router.GET("/wasatext/:username/users/:usernameSearched", rt.getUserProfile)
 
 	// ------------------------------------------------
-	// CONVERSATIONS (General List)
+	// CONVERSATIONS
 	// ------------------------------------------------
 	// Get all conversations
 	rt.router.GET("/wasatext/:username/conversations", rt.getMyConversations)
@@ -80,7 +79,6 @@ func (rt *_router) Handler() http.Handler {
 	rt.router.POST("/wasatext/:username/groups/:conversationId/admins", rt.makeAdmin)
 
 	// Remove admin status
-	// Parameter aligned with YAML: userId (UUID)
 	rt.router.DELETE("/wasatext/:username/groups/:conversationId/admins/:userId", rt.removeAdminStatus)
 
 	// Update group name
@@ -126,4 +124,7 @@ func (rt *_router) Handler() http.Handler {
 	rt.router.GET("/wasatext/:username/conversations/:conversationId/messages/:messageId/reactions", rt.getAllMessageReactions)
 
 	return rt.router
+
+	// Definiti in modo Astatto, li devo implementare
+
 }

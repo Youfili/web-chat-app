@@ -2,7 +2,7 @@ openapi: 3.0.4
 info:
   title: WASAtext
   description:  API Web Chat App, University project
-  version: 1.0.0
+  version: 1.1.1
   
 servers:
   - url: https://api.web-chat-app.com/v1
