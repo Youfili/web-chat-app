@@ -99,7 +99,7 @@ func (rt *_router) Handler() http.Handler {
 	// Send new message
 	rt.router.POST("/wasatext/:username/conversations/:conversationId/messages", rt.sendMessage)
 
-	// Mark messages as read (Blue ticks) - ADDED
+	// Mark messages as read
 	rt.router.PUT("/wasatext/:username/conversations/:conversationId/read_status", rt.markMessagesAsRead)
 
 	// Edit message
@@ -124,7 +124,4 @@ func (rt *_router) Handler() http.Handler {
 	rt.router.GET("/wasatext/:username/conversations/:conversationId/messages/:messageId/reactions", rt.getAllMessageReactions)
 
 	return rt.router
-
-	// Definiti in modo Astatto, li devo implementare
-
 }
