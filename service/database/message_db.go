@@ -1,0 +1,158 @@
+package database
+
+import (
+	"database/sql"
+	"time"
+
+	"github.com/Youfili/WASAtext/service/api"
+	"github.com/google/uuid"
+)
+
+func createTableMessages(db *sql.DB) error {
+	const query = `
+	CREATE TABLE IF NOT EXISTS messages (
+		id TEXT PRIMARY KEY,
+		conversation_id TEXT NOT NULL,
+		sender_id TEXT NOT NULL,
+		content TEXT NOT NULL,
+		created_at DATETIME NOT NULL,		
+		is_forwarded BOOLEAN DEFAULT 0,
+		FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+		FOREIGN KEY (sender_id) REFERENCES users(id)
+	);`
+	_, err := db.Exec(query)
+	return err
+}
+
+func (db *appdbimpl) CreateMessage(msg api.Message) (api.Message, error) {
+	tx, err := db.c.Begin()
+	if err != nil {
+		return api.Message{}, err
+	}
+	defer tx.Rollback()
+
+	// Se l'ID non c'è, viene generato
+	if msg.ID == "" {
+		msg.ID = uuid.New().String()
+	}
+
+	// Se il Timestamp è "zero" (non settato), metto ADESSO.
+	if msg.Timestamp.IsZero() {
+		msg.Timestamp = time.Now().UTC() // Uso UTC.
+	}
+
+	// Insert nel DB
+	_, err = tx.Exec(`INSERT INTO messages (id, conversation_id, sender_id, content, created_at, is_forwarded) VALUES (?, ?, ?, ?, ?, ?)`,
+		msg.ID, msg.ConversationID, msg.SenderUserID, msg.ContentMess, msg.Timestamp, msg.Forwarded)
+	if err != nil {
+		return api.Message{}, err
+	}
+
+	// Visto che ho creato un nuovo messaggio in questo orario, aggiorno l'orario dell'ultima attività della conversazione
+	_, err = tx.Exec(`UPDATE conversations SET last_message_at = ? WHERE id = ?`, msg.Timestamp, msg.ConversationID)
+	if err != nil {
+		return api.Message{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return api.Message{}, err
+	}
+
+	// Appena creato, il messaggio, è sicuramente delivered (e non 'read')
+	msg.StatusInfo = "delivered"
+	return msg, nil
+}
+
+func (db *appdbimpl) GetMessages(conversationID string, limit int, before time.Time) ([]api.Message, error) {
+	query := `
+		SELECT m.id, m.content, m.created_at, m.is_forwarded, m.sender_id, u.username
+		FROM messages m
+		JOIN users u ON m.sender_id = u.id
+		WHERE m.conversation_id = ? AND m.created_at < ?
+		ORDER BY m.created_at DESC
+		LIMIT ?
+	`
+	rows, err := db.c.Query(query, conversationID, before, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var msgs []api.Message
+	for rows.Next() {
+		var m api.Message
+		err := rows.Scan(&m.ID, &m.ContentMess, &m.Timestamp, &m.Forwarded, &m.SenderUserID, &m.SenderUsername)
+		if err != nil {
+			return nil, err
+		}
+		m.ConversationID = conversationID
+		msgs = append(msgs, m)
+	}
+	return msgs, nil
+}
+
+func (db *appdbimpl) EditMessage(messageID string, newContent string) (api.Message, error) {
+	// Eseguo l'UPDATE del contenuto
+	res, err := db.c.Exec(`UPDATE messages SET content = ? WHERE id = ?`, newContent, messageID)
+	if err != nil {
+		return api.Message{}, err
+	}
+
+	// Controllo se il messaggio esisteva
+	affected, err := res.RowsAffected() // Se RowsAffected è 0, significa che l'ID non è stato trovato.
+	if err != nil {
+		return api.Message{}, err
+	}
+	if affected == 0 {
+		return api.Message{}, ErrMessageNotFound
+	}
+
+	// Recupero l'oggetto "messaggio" completo per restituirlo
+	// Devo fare una JOIN con users per ripopolare il campo SenderUsername --> che serve al frontend per visualizzare il messaggio correttamente.
+	var msg api.Message
+	query := `
+		SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at, m.is_forwarded, u.username
+		FROM messages m
+		JOIN users u ON m.sender_id = u.id
+		WHERE m.id = ?
+	`
+	err = db.c.QueryRow(query, messageID).Scan(
+		&msg.ID,
+		&msg.ConversationID,
+		&msg.SenderUserID,
+		&msg.ContentMess, // Questo conterrà il nuovo testo (messaggio modificato)
+		&msg.Timestamp,
+		&msg.Forwarded,
+		&msg.SenderUsername,
+	)
+	if err != nil {
+		return api.Message{}, err
+	}
+
+	// Imposto lo status di default (come in CreateMessage)
+	msg.StatusInfo = "delivered"
+	return msg, nil
+}
+
+func (db *appdbimpl) DeleteMessage(messageID string) error {
+	res, err := db.c.Exec(`DELETE FROM messages WHERE id = ?`, messageID)
+	if err != nil {
+		return err
+	}
+	aff, _ := res.RowsAffected()
+	if aff == 0 {
+		return ErrMessageNotFound
+	}
+	return nil
+}
+
+// Qui aggiorno il "cursore" di lettura
+func (db *appdbimpl) MarkConversationAsRead(conversationID string, userReaderID string, lastMessageID string) error {
+	// Aggiorna l'ultimo messaggio letto per questo utente in questa chat
+	_, err := db.c.Exec(`
+        UPDATE participants 
+        SET last_read_message_id = ? 
+        WHERE conversation_id = ? AND user_id = ?`,
+		lastMessageID, conversationID, userReaderID)
+	return err
+}

@@ -99,11 +99,12 @@ components:
           pattern: '.*'               # gestire lato server
           description: User Status     
           example: "Available, write to me! :)"
-
       required:
         - id 
         - username
         - profilePhoto
+  
+
   
     GroupChat:
       type: object
@@ -2193,7 +2194,7 @@ paths:
                   users:
                     type: array
                     minItems: 0
-                    maxItems: 10000      
+                    maxItems: 10000 
                     items:
                       $ref: "#/components/schemas/User"
                     description: Array of matching users. Empty array if no results.
