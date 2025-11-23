@@ -99,7 +99,7 @@ func (rt *_router) Handler() http.Handler {
 	// Send new message
 	rt.router.POST("/wasatext/:username/conversations/:conversationId/messages", rt.sendMessage)
 
-	// Mark messages as read
+	// Mark messages as read (Blue Ticks)
 	rt.router.PUT("/wasatext/:username/conversations/:conversationId/read_status", rt.markMessagesAsRead)
 
 	// Edit message
