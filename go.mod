@@ -1,4 +1,5 @@
-module git.sapienzaapps.it/fantasticcoffee/fantastic-coffee-decaffeinated
+module github.com/Youfili/web-chat-app
+
 // module github.com/Youfili/WASAtext
 
 go 1.17

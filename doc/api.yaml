@@ -583,7 +583,7 @@ components:
 
 paths:
 
-  /wasatext/login:
+  /session/login:
     post:
       operationId: doLogin
       security: []
@@ -624,7 +624,7 @@ paths:
                   username: "steph_curry"
                   profilePhoto: "https://web-chat-app.com/users/profile-images/default.png"
   
-  /wasatext/register:                                                                                  # Registrare un nuovo utente
+  /session/register:                                                                                  # Registrare un nuovo utente
     post:
       operationId: registerUser
       security: []
@@ -2035,12 +2035,6 @@ paths:
       responses:
         '204':
           description: Reaction removed successfully
-        '404':
-          description: Message or reaction not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
 
     get:                                                                # ritorno tutte le Reazioni a un messaggio specifico
       operationId: getAllMessageReactions

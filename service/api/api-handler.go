@@ -14,8 +14,8 @@ func (rt *_router) Handler() http.Handler {
 	// ------------------------------------------------
 	// LOGIN & REGISTRATION
 	// ------------------------------------------------
-	rt.router.POST("/wasatext/login", rt.doLogin)
-	rt.router.POST("/wasatext/register", rt.registerUser)
+	rt.router.POST("/session/login", rt.doLogin)
+	rt.router.POST("/session/register", rt.registerUser)
 
 	// ------------------------------------------------
 	// USERS (Profile, Status, Search)
