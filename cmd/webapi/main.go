@@ -28,17 +28,18 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"git.sapienzaapps.it/fantasticcoffee/fantastic-coffee-decaffeinated/service/api"
-	"git.sapienzaapps.it/fantasticcoffee/fantastic-coffee-decaffeinated/service/database"
-	"git.sapienzaapps.it/fantasticcoffee/fantastic-coffee-decaffeinated/service/globaltime"
-	"github.com/ardanlabs/conf"
-	_ "github.com/mattn/go-sqlite3"
-	"github.com/sirupsen/logrus"
 	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/Youfili/web-chat-app/service/api"
+	"github.com/Youfili/web-chat-app/service/database"
+	"github.com/Youfili/web-chat-app/service/globaltime"
+	"github.com/ardanlabs/conf"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/sirupsen/logrus"
 )
 
 // main is the program entry point. The only purpose of this function is to call run() and set the exit code if there is
@@ -118,15 +119,18 @@ func run() error {
 		logger.WithError(err).Error("error creating the API server instance")
 		return fmt.Errorf("creating the API server instance: %w", err)
 	}
+
+	// Ottengo l'handler dal router (definito in api-handler.go)
 	router := apirouter.Handler()
 
+	// Register Web UI (Frontend) --> Serve i file statici di Vue.js
 	router, err = registerWebUI(router)
 	if err != nil {
 		logger.WithError(err).Error("error registering web UI handler")
 		return fmt.Errorf("registering web UI handler: %w", err)
 	}
 
-	// Apply CORS policy
+	// Apply CORS policy	--> Fondamentale per far parlare Vue (port 8080) con Go (port 3000)
 	router = applyCORSHandler(router)
 
 	// Create the API server

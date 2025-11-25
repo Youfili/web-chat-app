@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/mattn/go-sqlite3"
-	"github.com/tuo_username/WASAtext/service/api"
 )
 
 func createTableReactions(db *sql.DB) error {
@@ -24,7 +23,7 @@ func createTableReactions(db *sql.DB) error {
 	return err
 }
 
-func (db *appdbimpl) AddReaction(r api.Reaction) error {
+func (db *appdbimpl) AddReaction(r Reaction) error {
 	query := `INSERT INTO reactions (id, message_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?, ?)`
 	_, err := db.c.Exec(query, r.ReactionID, r.MessToReactID, r.SenderUserID, r.Emoji, r.Timestamp)
 	if err != nil {
@@ -49,7 +48,7 @@ func (db *appdbimpl) RemoveReaction(messageID string, userID string) error {
 	return nil
 }
 
-func (db *appdbimpl) GetReactions(messageID string) ([]api.Reaction, error) {
+func (db *appdbimpl) GetReactions(messageID string) ([]Reaction, error) {
 	// Query con JOIN per recuperare anche lo username di chi ha messo la reazione -->  Non l'ho passato prima cosi da avere l'username aggiornato (nel caso venga modificato dall'utente stesso)
 	query := `
 		SELECT r.id, r.emoji, r.created_at, r.message_id, r.user_id, u.username
@@ -63,13 +62,13 @@ func (db *appdbimpl) GetReactions(messageID string) ([]api.Reaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }() //gestisco l'errore "buttandolo via" con _
 
 	// Inizializzo la slice (se non ci sono risultati, ritornerà un array vuoto [] in JSON invece di null)
-	reactions := make([]api.Reaction, 0)
+	reactions := make([]Reaction, 0)
 
 	for rows.Next() {
-		var r api.Reaction
+		var r Reaction
 		err := rows.Scan(
 			&r.ReactionID,
 			&r.Emoji,

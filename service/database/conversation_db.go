@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tuo_username/WASAtext/service/api"
 )
 
 func createTableConversations(db *sql.DB) error {
@@ -38,7 +37,7 @@ func createTableParticipants(db *sql.DB) error {
 }
 
 // GetConversations: Logica ibrida
-func (db *appdbimpl) GetConversations(userID string) ([]api.Conversation, error) {
+func (db *appdbimpl) GetConversations(userID string) ([]Conversation, error) {
 	query := `
 		SELECT c.id, c.type, c.group_name, c.group_photo, c.group_description, c.last_message_at
 		FROM conversations c
@@ -50,12 +49,12 @@ func (db *appdbimpl) GetConversations(userID string) ([]api.Conversation, error)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
-	var conversations []api.Conversation
+	var conversations []Conversation
 
 	for rows.Next() {
-		var c api.Conversation
+		var c Conversation
 		var gName, gPhoto, gDesc sql.NullString
 		var lastMsgAt sql.NullTime
 
@@ -73,7 +72,8 @@ func (db *appdbimpl) GetConversations(userID string) ([]api.Conversation, error)
 		// Get snippet
 		_ = db.c.QueryRow(`SELECT content FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 1`, c.ID).Scan(&c.Snippet)
 
-		if c.ConversationType == "group" {
+		switch c.ConversationType {
+		case "group":
 			if gName.Valid {
 				v := gName.String
 				c.GroupName = &v
@@ -86,27 +86,30 @@ func (db *appdbimpl) GetConversations(userID string) ([]api.Conversation, error)
 				v := gDesc.String
 				c.GroupDescription = &v
 			}
-		} else if c.ConversationType == "private" {
-			// Trova l'altro utente
+
+		case "private":
+			// Trovo l'altro utente
 			var otherName, otherPhoto, otherID string
 			err := db.c.QueryRow(`
-				SELECT u.username, u.profile_photo, u.id
-				FROM participants p 
-				JOIN users u ON p.user_id = u.id
-				WHERE p.conversation_id = ? AND p.user_id != ?`, c.ID, userID).Scan(&otherName, &otherPhoto, &otherID)
+                SELECT u.username, u.profile_photo, u.id
+                FROM participants p 
+                JOIN users u ON p.user_id = u.id
+                WHERE p.conversation_id = ? AND p.user_id != ?`, c.ID, userID).Scan(&otherName, &otherPhoto, &otherID)
+
 			if err == nil {
 				c.RecipientUsername = &otherName
 				c.UserPhoto = &otherPhoto
 				c.RecipientUser = &otherID
 			}
 		}
+
 		conversations = append(conversations, c)
 	}
 	return conversations, nil
 }
 
-func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID string) (api.Conversation, error) {
-	var c api.Conversation
+func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID string) (Conversation, error) {
+	var c Conversation
 	var grName, grPhoto, grDesc sql.NullString
 	var lastMsgAt sql.NullTime
 
@@ -129,10 +132,10 @@ func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID
 
 	if err == sql.ErrNoRows {
 		// Se non trovo righe, o la chat non esiste o l'utente non è membro.
-		return api.Conversation{}, ErrChatNotFound
+		return Conversation{}, ErrChatNotFound
 	}
 	if err != nil {
-		return api.Conversation{}, err
+		return Conversation{}, err
 	}
 
 	// Gestione Timestamp
@@ -147,7 +150,8 @@ func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID
 	_ = db.c.QueryRow(`SELECT content FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 1`, conversationID).Scan(&c.Snippet)
 
 	// 3. Logica specifica per TIPO
-	if c.ConversationType == "group" {
+	switch c.ConversationType {
+	case "group":
 		// Popolo i campi del gruppo
 		if grName.Valid {
 			val := grName.String
@@ -165,9 +169,10 @@ func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID
 		// 3a. Recupero TUTTI i membri e gli admin
 		rows, err := db.c.Query(`SELECT user_id, is_admin FROM participants WHERE conversation_id = ?`, conversationID)
 		if err != nil {
-			return api.Conversation{}, err
+			return Conversation{}, err
 		}
-		defer rows.Close()
+
+		defer func() { _ = rows.Close() }()
 
 		var members []string
 		var admins []string
@@ -176,7 +181,7 @@ func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID
 			var uid string
 			var isAdmin bool
 			if err := rows.Scan(&uid, &isAdmin); err != nil {
-				return api.Conversation{}, err
+				return Conversation{}, err
 			}
 			members = append(members, uid)
 			if isAdmin {
@@ -186,50 +191,52 @@ func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID
 		c.Members = &members
 		c.Admins = &admins
 
-	} else if c.ConversationType == "private" {
+	case "private":
 		// 3b. Popolo i campi della chat privata cercando l'altro utente
 		var otherID, otherName, otherPhoto string
 		err := db.c.QueryRow(`
-			SELECT u.id, u.username, u.profile_photo 
-			FROM participants p
-			JOIN users u ON p.user_id = u.id
-			WHERE p.conversation_id = ? AND p.user_id != ?
-		`, conversationID, requestingUserID).Scan(&otherID, &otherName, &otherPhoto)
+            SELECT u.id, u.username, u.profile_photo 
+            FROM participants p
+            JOIN users u ON p.user_id = u.id
+            WHERE p.conversation_id = ? AND p.user_id != ?
+        `, conversationID, requestingUserID).Scan(&otherID, &otherName, &otherPhoto)
 
-		if err == nil {
+		switch err {
+		case nil:
 			c.RecipientUser = &otherID
 			c.RecipientUsername = &otherName
 			c.UserPhoto = &otherPhoto
-		} else if err == sql.ErrNoRows {
-		} else {
-			return api.Conversation{}, err
+		case sql.ErrNoRows:
+			// Nessuna riga trovata
+		default:
+			return Conversation{}, err
 		}
 	}
 
 	return c, nil
 }
 
-func (db *appdbimpl) CreatePrivateChat(userA string, userB string) (api.Conversation, error) {
+func (db *appdbimpl) CreatePrivateChat(userA string, userB string) (Conversation, error) {
 	tx, err := db.c.Begin()
 	if err != nil {
-		return api.Conversation{}, err
+		return Conversation{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	chatID := uuid.New().String()
 	now := time.Now()
 
 	if _, err := tx.Exec(`INSERT INTO conversations (id, type, last_message_at) VALUES (?, 'private', ?)`, chatID, now); err != nil {
-		return api.Conversation{}, err
+		return Conversation{}, err
 	}
 	if _, err := tx.Exec(`INSERT INTO participants (conversation_id, user_id) VALUES (?, ?), (?, ?)`, chatID, userA, chatID, userB); err != nil {
-		return api.Conversation{}, err
+		return Conversation{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return api.Conversation{}, err
+		return Conversation{}, err
 	}
-	return api.Conversation{ID: chatID, ConversationType: "private"}, nil
+	return Conversation{ID: chatID, ConversationType: "private"}, nil
 }
 
 func (db *appdbimpl) CheckIfPrivateChatExists(userA string, userB string) (string, bool, error) {
@@ -251,24 +258,24 @@ func (db *appdbimpl) CheckIfPrivateChatExists(userA string, userB string) (strin
 	return chatID, true, nil
 }
 
-func (db *appdbimpl) CreateGroup(name string, desc string, photo string, creatorID string, membersIDs []string) (api.Conversation, error) {
+func (db *appdbimpl) CreateGroup(name string, desc string, photo string, creatorID string, membersIDs []string) (Conversation, error) {
 	tx, err := db.c.Begin()
 	if err != nil {
-		return api.Conversation{}, err
+		return Conversation{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	groupID := uuid.New().String()
 	now := time.Now()
 
 	_, err = tx.Exec(`INSERT INTO conversations (id, type, group_name, group_description, group_photo, last_message_at) VALUES (?, 'group', ?, ?, ?, ?)`, groupID, name, desc, photo, now)
 	if err != nil {
-		return api.Conversation{}, err
+		return Conversation{}, err
 	}
 
 	_, err = tx.Exec(`INSERT INTO participants (conversation_id, user_id, is_admin) VALUES (?, ?, 1)`, groupID, creatorID)
 	if err != nil {
-		return api.Conversation{}, err
+		return Conversation{}, err
 	}
 
 	for _, memberID := range membersIDs {
@@ -277,13 +284,13 @@ func (db *appdbimpl) CreateGroup(name string, desc string, photo string, creator
 		}
 		_, err = tx.Exec(`INSERT INTO participants (conversation_id, user_id, is_admin) VALUES (?, ?, 0)`, groupID, memberID)
 		if err != nil {
-			return api.Conversation{}, err
+			return Conversation{}, err
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return api.Conversation{}, err
+		return Conversation{}, err
 	}
-	return api.Conversation{ID: groupID, ConversationType: "group", GroupName: &name}, nil
+	return Conversation{ID: groupID, ConversationType: "group", GroupName: &name}, nil
 }
 
 // DeletePrivateChatForUser "nasconde" la chat rimuovendo l'utente dai partecipanti.
@@ -295,7 +302,7 @@ func (db *appdbimpl) DeletePrivateChatForUser(conversationID string, userID stri
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// 2. Rimuovo l'utente corrente dalla lista dei partecipanti
 	res, err := tx.Exec(`DELETE FROM participants WHERE conversation_id = ? AND user_id = ?`, conversationID, userID)

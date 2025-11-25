@@ -34,7 +34,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"service/api"
 	"time"
 )
 
@@ -50,32 +49,32 @@ var (
 	ErrSelfOperation     = errors.New("operation on self not allowed") // Es. chat privata con se stessi o auto-rimozione admin errata
 	ErrDuplicateReaction = errors.New("user already reacted to this message")
 	ErrPrivateChatExists = errors.New("private chat already exists") // Utile per il check se una chat privata già esiste, quando l'user ne vuole creare una nuova con uno specifico utente (dimenticandosi che già ne aveva una)
+	ErrConstraint        = errors.New("constraint violated")
 )
 
 // AppDatabase is the high level interface for the DB
 type AppDatabase interface {
 	GetName() (string, error)
-	SetName(name string) error
 
 	// ------------------------------------------------
 	// USER MANAGEMENT
 	// ------------------------------------------------
 
 	// CreateUser crea un nuovo utente. Ritorna l'utente creato (con ID UUID).
-	CreateUser(u api.User) (api.User, error)
+	CreateUser(u User) (User, error)
 
 	// GetUserByID ritorna il profilo utente dato l'UUID.
-	GetUserByID(id string) (api.User, error)
+	GetUserByID(id string) (User, error)
 
 	// GetUserByUsername ritorna il profilo utente dato lo username (utile per login e search).
-	GetUserByUsername(username string) (api.User, error)
+	GetUserByUsername(username string) (User, error)
 
 	// SearchUsers cerca utenti tramite "pattern matching" (LIKE %query%) sullo username.
 	// Esclude l'utente che fa la richiesta (id dello user loggato in sessione) dai risultati se necessario.
-	SearchUsers(query string) ([]api.User, error)
+	SearchUsers(query string) ([]User, error)
 
 	// UpdateUsername aggiorna lo username. Deve ritornare ErrUsernameTaken se esiste già.
-	UpdateUsername(userID string, newUsername string) (api.User, error)
+	UpdateUsername(userID string, newUsername string) (User, error)
 
 	// SetUserPhoto aggiorna la foto profilo.
 	SetUserPhoto(userID string, photoURL string) error
@@ -90,11 +89,11 @@ type AppDatabase interface {
 	// GetConversations ritorna la lista delle chat (Private + Gruppi) per un utente.
 	// La struct api.Conversation contiene campi nil/non-nil a seconda del tipo.
 	// Deve essere ordinata per data dell'ultimo messaggio (desc).
-	GetConversations(userID string) ([]api.Conversation, error)
+	GetConversations(userID string) ([]Conversation, error)
 
 	// GetConversationByID ritorna una specifica conversazione.
 	// Deve popolare i campi corretti (es. GroupName se gruppo, Recipient se privata).
-	GetConversationByID(conversationID string, requestingUserID string) (api.Conversation, error)
+	GetConversationByID(conversationID string, requestingUserID string) (Conversation, error)
 
 	// ------------------------------------------------
 	// PRIVATE CHATS
@@ -102,7 +101,7 @@ type AppDatabase interface {
 
 	// CreatePrivateChat crea una chat tra due utenti.
 	// Se la chat esiste già, dovrebbe ritornare quella esistente (o un errore specifico gestito dall'handler).
-	CreatePrivateChat(userA string, userB string) (api.Conversation, error)
+	CreatePrivateChat(userA string, userB string) (Conversation, error)
 
 	// CheckIfPrivateChatExists controlla se esiste una chat tra due utenti e ne ritorna l'ID.
 	// Fondamentale per la logica di "Forward" intelligente.
@@ -117,7 +116,7 @@ type AppDatabase interface {
 
 	// CreateGroup crea un nuovo gruppo.
 	// membersIDs è la lista iniziale dei partecipanti (incluso il creatore).
-	CreateGroup(name string, desc string, photo string, creatorID string, membersIDs []string) (api.Conversation, error)
+	CreateGroup(name string, desc string, photo string, creatorID string, membersIDs []string) (Conversation, error)
 
 	// AddGroupMember aggiunge un utente al gruppo.
 	AddGroupMember(groupID string, userIDToAdd string) error
@@ -137,15 +136,18 @@ type AppDatabase interface {
 	// ------------------------------------------------
 
 	// CreateMessage salva un nuovo messaggio nel DB.
-	CreateMessage(msg api.Message) (api.Message, error)
+	CreateMessage(msg Message) (Message, error)
 
 	// GetMessages recupera la cronologia.
 	// 'before': timestamp per paginazione (messaggi più vecchi di...).
 	// 'limit': numero messaggi.
-	GetMessages(conversationID string, limit int, before time.Time) ([]api.Message, error)
+	GetMessages(conversationID string, limit int, before time.Time) ([]Message, error)
+
+	// Return Message by ID
+	GetMessageByID(messageID string) (Message, error)
 
 	// EditMessage modifica il contenuto testuale.
-	EditMessage(messageID string, newContent string) (api.Message, error)
+	EditMessage(messageID string, newContent string) (Message, error)
 
 	// DeleteMessage elimina un messaggio.
 	DeleteMessage(messageID string) error
@@ -160,13 +162,13 @@ type AppDatabase interface {
 	// ------------------------------------------------
 
 	// AddReaction aggiunge una reazione.
-	AddReaction(reaction api.Reaction) error
+	AddReaction(reaction Reaction) error
 
 	// RemoveReaction rimuove la reazione di un utente a un messaggio.
 	RemoveReaction(messageID string, userID string) error
 
 	// GetReactions recupera tutte le reazioni di un messaggio.
-	GetReactions(messageID string) ([]api.Reaction, error)
+	GetReactions(messageID string) ([]Reaction, error)
 
 	Ping() error
 }
@@ -216,4 +218,9 @@ func New(db *sql.DB) (AppDatabase, error) {
 
 func (db *appdbimpl) Ping() error {
 	return db.c.Ping()
+}
+
+func (db *appdbimpl) GetName() (string, error) {
+	// Restituisci il nome del progetto o quello che richiede la specifica
+	return "Wasatext", nil
 }

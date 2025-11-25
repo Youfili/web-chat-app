@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/Youfili/WASAtext/service/api"
 	"github.com/google/uuid"
 )
 
@@ -24,12 +23,12 @@ func createTableMessages(db *sql.DB) error {
 	return err
 }
 
-func (db *appdbimpl) CreateMessage(msg api.Message) (api.Message, error) {
+func (db *appdbimpl) CreateMessage(msg Message) (Message, error) {
 	tx, err := db.c.Begin()
 	if err != nil {
-		return api.Message{}, err
+		return Message{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Se l'ID non c'è, viene generato
 	if msg.ID == "" {
@@ -45,17 +44,17 @@ func (db *appdbimpl) CreateMessage(msg api.Message) (api.Message, error) {
 	_, err = tx.Exec(`INSERT INTO messages (id, conversation_id, sender_id, content, created_at, is_forwarded) VALUES (?, ?, ?, ?, ?, ?)`,
 		msg.ID, msg.ConversationID, msg.SenderUserID, msg.ContentMess, msg.Timestamp, msg.Forwarded)
 	if err != nil {
-		return api.Message{}, err
+		return Message{}, err
 	}
 
 	// Visto che ho creato un nuovo messaggio in questo orario, aggiorno l'orario dell'ultima attività della conversazione
 	_, err = tx.Exec(`UPDATE conversations SET last_message_at = ? WHERE id = ?`, msg.Timestamp, msg.ConversationID)
 	if err != nil {
-		return api.Message{}, err
+		return Message{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return api.Message{}, err
+		return Message{}, err
 	}
 
 	// Appena creato, il messaggio, è sicuramente delivered (e non 'read')
@@ -63,7 +62,7 @@ func (db *appdbimpl) CreateMessage(msg api.Message) (api.Message, error) {
 	return msg, nil
 }
 
-func (db *appdbimpl) GetMessages(conversationID string, limit int, before time.Time) ([]api.Message, error) {
+func (db *appdbimpl) GetMessages(conversationID string, limit int, before time.Time) ([]Message, error) {
 	query := `
 		SELECT m.id, m.content, m.created_at, m.is_forwarded, m.sender_id, u.username
 		FROM messages m
@@ -76,11 +75,11 @@ func (db *appdbimpl) GetMessages(conversationID string, limit int, before time.T
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
-	var msgs []api.Message
+	var msgs []Message
 	for rows.Next() {
-		var m api.Message
+		var m Message
 		err := rows.Scan(&m.ID, &m.ContentMess, &m.Timestamp, &m.Forwarded, &m.SenderUserID, &m.SenderUsername)
 		if err != nil {
 			return nil, err
@@ -91,25 +90,56 @@ func (db *appdbimpl) GetMessages(conversationID string, limit int, before time.T
 	return msgs, nil
 }
 
-func (db *appdbimpl) EditMessage(messageID string, newContent string) (api.Message, error) {
+// GetMessageByID recupera un messaggio specifico (lo uso per Edit, Delete e Forward)
+func (db *appdbimpl) GetMessageByID(messageID string) (Message, error) {
+	var m Message
+
+	// Query con JOIN per avere anche lo username del mittente
+	query := `
+		SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at, m.is_forwarded, u.username
+		FROM messages m
+		JOIN users u ON m.sender_id = u.id
+		WHERE m.id = ?
+	`
+	err := db.c.QueryRow(query, messageID).Scan(
+		&m.ID,
+		&m.ConversationID,
+		&m.SenderUserID,
+		&m.ContentMess,
+		&m.Timestamp,
+		&m.Forwarded,
+		&m.SenderUsername,
+	)
+
+	if err == sql.ErrNoRows {
+		return Message{}, ErrMessageNotFound
+	}
+	if err != nil {
+		return Message{}, err
+	}
+
+	return m, nil
+}
+
+func (db *appdbimpl) EditMessage(messageID string, newContent string) (Message, error) {
 	// Eseguo l'UPDATE del contenuto
 	res, err := db.c.Exec(`UPDATE messages SET content = ? WHERE id = ?`, newContent, messageID)
 	if err != nil {
-		return api.Message{}, err
+		return Message{}, err
 	}
 
 	// Controllo se il messaggio esisteva
 	affected, err := res.RowsAffected() // Se RowsAffected è 0, significa che l'ID non è stato trovato.
 	if err != nil {
-		return api.Message{}, err
+		return Message{}, err
 	}
 	if affected == 0 {
-		return api.Message{}, ErrMessageNotFound
+		return Message{}, ErrMessageNotFound
 	}
 
 	// Recupero l'oggetto "messaggio" completo per restituirlo
 	// Devo fare una JOIN con users per ripopolare il campo SenderUsername --> che serve al frontend per visualizzare il messaggio correttamente.
-	var msg api.Message
+	var msg Message
 	query := `
 		SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at, m.is_forwarded, u.username
 		FROM messages m
@@ -126,7 +156,7 @@ func (db *appdbimpl) EditMessage(messageID string, newContent string) (api.Messa
 		&msg.SenderUsername,
 	)
 	if err != nil {
-		return api.Message{}, err
+		return Message{}, err
 	}
 
 	// Imposto lo status di default (come in CreateMessage)
