@@ -87,6 +87,11 @@ func (db *appdbimpl) GetMessages(conversationID string, limit int, before time.T
 		m.ConversationID = conversationID
 		msgs = append(msgs, m)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return msgs, nil
 }
 
