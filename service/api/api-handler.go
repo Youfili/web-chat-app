@@ -123,5 +123,16 @@ func (rt *_router) Handler() http.Handler {
 	// Get all reactions for a message
 	rt.router.GET("/wasatext/:username/conversations/:conversationId/messages/:messageId/reactions", rt.getAllMessageReactions)
 
+	// ------------------------------------------------
+	// MEDIA & UPLOAD
+	// ------------------------------------------------
+
+	// 1. Endpoint per caricare le immagini
+	rt.router.POST("/media/upload", rt.uploadFile)
+
+	// 2. Endpoint per visualizzare le immagini
+	// Nella pratica dico a Go: "Se chiedono /images/..., vai a cercare nella cartella ./images quel determinato file"
+	rt.router.ServeFiles("/images/*filepath", http.Dir("./images"))
+
 	return rt.router
 }
