@@ -62,7 +62,7 @@ func (db *appdbimpl) GetReactions(messageID string) ([]Reaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }() //gestisco l'errore "buttandolo via" con _
+	defer func() { _ = rows.Close() }() // Gestisco l'errore "buttandolo via" con _
 
 	// Inizializzo la slice (se non ci sono risultati, ritornerà un array vuoto [] in JSON invece di null)
 	reactions := make([]Reaction, 0)
@@ -81,6 +81,10 @@ func (db *appdbimpl) GetReactions(messageID string) ([]Reaction, error) {
 			return nil, err
 		}
 		reactions = append(reactions, r)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	if err = rows.Err(); err != nil {

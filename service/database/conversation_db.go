@@ -105,6 +105,11 @@ func (db *appdbimpl) GetConversations(userID string) ([]Conversation, error) {
 
 		conversations = append(conversations, c)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return conversations, nil
 }
 
@@ -188,6 +193,11 @@ func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID
 				admins = append(admins, uid)
 			}
 		}
+
+		if err := rows.Err(); err != nil {
+			return Conversation{}, err
+		}
+
 		c.Members = &members
 		c.Admins = &admins
 
