@@ -1,56 +1,935 @@
 <script>
+import { nextTick } from 'vue'
+import api from '@/services/api'
+import LoadingSpinner from '@/components/LoadingSpinner.vue'
+
 export default {
-	data: function() {
-		return {
-			errormsg: null,
-			loading: false,
-			some_data: null,
-		}
-	},
-	methods: {
-		async refresh() {
-			this.loading = true;
-			this.errormsg = null;
-			try {
-				let response = await this.$axios.get("/");
-				this.some_data = response.data;
-			} catch (e) {
-				this.errormsg = e.toString();
-			}
-			this.loading = false;
-		},
-	},
-	mounted() {
-		this.refresh()
-	}
+    // Registrazione componenti
+    components: {
+        LoadingSpinner
+    },
+    
+    // Parte del Pattern in cui dichiaro tutte le variabili reattive 
+    data() {
+        return {
+            // Recupero lo username dalla sessione
+            username: localStorage.getItem('username'),
+
+            // Variabili
+            myProfile: null,
+            conversations: [],
+            loading: true,
+            errorMsg: null,
+
+            selectedChatId: null,       // Per sapere quale chat è aperta
+            newMessageText: "",         // per l'invio di un nuovo messaggio
+
+            messages: [],               // La lista dei messaggi della chat aperta
+            chatLoading: false,         // Loading specifico per la colonna destra
+
+            // Variabili per la ricerca
+            searchQuery: "",
+            searchResults: [],          // Lista utenti trovati
+            isSearching: false,         // Se true, mostro i risultati invece delle chat
+
+            // Variabili per il timer
+            pollingInterval: null,
+
+            // Variabili Gruppo
+            showGroupModal: false,     // Apre/Chiude la finestra
+            newGroupName: "",          // Nome del nuovo gruppo
+            groupSearchQuery: "",      // Ricerca utenti per il gruppo
+            groupSearchResults: [],    // Risultati ricerca
+            selectedUsers: [],         // Utenti selezionati (ID e Username)
+            currentChatAdmins: [],     // Lista admin della chat corrente (quella che sto esaminando)
+
+            // Variabili Info Gruppo
+            showInfoModal: false,
+            groupInfo: null,            // Conterrà i dettagli del gruppo cliccato
+
+            // Variabili Info Utente
+            userInfo: null              // Dati utente chat privata
+        }
+    },
+
+    // Per calcolare dati derivati
+    computed: {
+        // Restituisce l'oggetto della chat attualmente selezionata
+        activeChat() {
+            return this.conversations.find(c => c.id === this.selectedChatId)
+        }
+    },
+
+    // Parte del Pattern in cui metto tutte le funzioni
+    methods: {
+        // Navigazione Profilo
+        goToProfile() {
+            this.$router.push('/profile')
+        },
+
+        // Funzione per caricare i dati iniziali
+        async loadData() {
+            try {
+                this.loading = true
+                // Restituisco il profilo dell'utente loggato in sessione
+                this.myProfile = await api.getMyProfile(this.username)
+                
+                // Restituisco le chat dell'utente loggato in sessione
+                const response = await api.getConversations(this.username)
+                this.conversations = (response.conversations || []).filter(c => c)  // Aggiungo .filter(c => c) per rimuovere i null
+                
+            } catch (e) {
+                this.errorMsg = e.toString()
+            } finally {
+                this.loading = false
+            }
+        },
+
+        // Funzione per ricavare il nome della chat (a seconda se è un chat di gruppo o privata)
+        getChatName(chat) {
+            if (chat.conversationType === 'group') {
+                return chat.groupName
+            } else {
+                return chat.recipientUsername
+            }
+        },
+
+        // Funzione helper per l'avatar (con avatar intendo anche l'immagine del gruppo, non solo del profilo di utenti) (a seconda se è un chat di gruppo o privata)
+        getChatPhoto(chat) {
+            // Se c'è una foto specifica (gruppo o utente), utilizzo quella
+            if (chat.conversationType === 'group' && chat.groupPhoto) return chat.groupPhoto
+            if (chat.conversationType === 'private' && chat.userPhoto) return chat.userPhoto
+            
+            // Fallback immagine default
+            // NOTA (Promemoria per me): Lo slash iniziale "/" indica la root della cartella 'public' di Vue
+            return '/default_avatar.jpg'
+        },
+
+
+        async selectChat(chatId) {
+            // Aggiorno ID chat selezionata
+            this.selectedChatId = chatId
+            // Resetto e attivo loading
+            this.messages = [] 
+            this.currentChatAdmins = [] // Reset
+            this.chatLoading = true
+            this.errorMsg = null // Resetto errori globali 
+
+            try {
+                // Se è un gruppo, recupero i dettagli (inclusi admin)
+                // Cercoo il tipo nella lista locale
+                const chat = this.conversations.find(c => c.id === chatId)
+                const chatType = chat ? chat.conversationType : null
+                
+                if (chatType === 'group') {
+                    try {
+                        const groupDetails = await api.getGroupChat(this.username, chatId)
+                        this.currentChatAdmins = groupDetails.admins || []
+                    } catch (err) {
+                        console.error("Errore recupero dettagli gruppo", err)
+                    }
+                }
+
+                // Carico i messaggi
+                // Chiamo l'API (api.js gestirà l'abort delle richieste vecchie)
+                let response = await api.getChatMessages(this.username, chatId)  // Il browser manda la richiesta al server Go (porta 3000) e aspetta.
+                this.messages = response.messages.reverse()
+                
+                this.markAsRead()    // Ho caricato i messaggi, quindi li sto leggendo ora.
+                
+
+            } catch (e) {
+                // GESTIONE CANCELLAZIONE
+                if (e.isCanceled) {
+                    console.log("Richiesta messaggi annullata (utente ha cambiato chat)")
+                    return; 
+                }
+                // Gestione errore reale
+                this.errorMsg = "Impossibile caricare i messaggi: " + e.toString()
+            } finally {
+                // Ragionamento che tengo per iscritto per averlo sott'occhio in fase di debug:
+                // Tolgo il loading solo se la richiesta NON è stata cancellata
+                // (Nota: se è stata cancellata, il loading resta true finché quella nuova non finisce)
+                // --> api.js lancia l'eccezione, quindi sono nel catch.
+                // Se arrivo qui con successo, tolgo il loading.
+                this.chatLoading = false
+
+                this.scrollToBottom()    // Poi scrollo
+
+            }
+        },
+
+        // Invia un nuovo messaggio
+        async sendMsg() {
+            // Evito invii vuoti o se nessuna chat è selezionata
+            if (!this.newMessageText.trim() || !this.selectedChatId) return
+
+            try {
+                // Chiamata API
+                const response = await api.sendMessage(this.username, this.selectedChatId, this.newMessageText)
+
+                // Nel backend ho implementato getMessages che restitusce i messsaggi in DESC (dal più nuovo).
+                // Nel selectChat li ho girati (.reverse()). Quindi ora sono [Vecchio, ..., Nuovo].
+                // Quindi devo fare PUSH per aggiungere in fondo.
+                this.messages.push(response) 
+
+                // Pulisco l'input e scrollo in basso
+                this.newMessageText = ""
+                this.scrollToBottom() 
+
+            } catch (e) {
+                this.errorMsg = "Error sending message: " + e.toString()
+            }
+        },
+
+        // Funzione Scroll To Bottom
+        async scrollToBottom() {
+            await nextTick() // Aspetto che Vue abbia aggiornato l'HTML con i nuovi messaggi
+            const chatContainer = this.$refs.chatContainer 
+            if (chatContainer) {
+                // Imposto lo scroll verticale (scrollTop) pari all'altezza totale (scrollHeight) --> Risolvo il bug che avevo di scroll
+                chatContainer.scrollTop = chatContainer.scrollHeight
+            }
+        },
+
+        // Funzione chiamata quando utente scrive nella barra di ricerca
+        async doSearch() {
+            if (this.searchQuery.length < 1) {
+                this.isSearching = false
+                this.searchResults = []
+                return
+            }
+
+            this.isSearching = true
+            try {
+                const response = await api.searchUsers(this.username, this.searchQuery)
+                // Filtro l'utente che ricerca dai risultati
+                this.searchResults = response.users.filter(u => u.username !== this.username)
+            } catch (e) {
+                console.error("Search error", e)
+            }
+        },
+
+        // Funzione chiamata quando clicco su un utente cercato
+        async startChatWith(user) {
+            try {
+                // Creo (o recupero, se già esiste) la chat privata
+                // Nota: Qui metto un messaggio iniziale di benvenuto sandard --> la mia API createPrivateChat Richiede un initialMessage (scelta implementativa personale)
+                const chat = await api.createPrivateChat(this.username, user.id, "👋")
+                
+                // Pulisco la ricerca
+                this.searchQuery = ""
+                this.isSearching = false
+                
+                // Ricarico la lista conversazioni (per far apparire quella nuova)
+                await this.loadData()
+                
+                // Seleziono subito la nuova chat
+                this.selectChat(chat.id)
+                
+            } catch (e) {
+                alert("Error creating chat: " + e.toString())
+            }
+        },
+
+
+        ////##  POLLING (Aggiornamento messaggi "live")
+
+        // Funzione per aggiornare i messaggi della chat aperta
+        async refreshChat() {
+            if (!this.selectedChatId) return
+
+            try {
+                // Nota: non resetto messages.value, confronto o sostituisco
+                let response = await api.getChatMessages(this.username, this.selectedChatId)
+                const newMessages = response.messages.reverse()
+                
+                // Controllo: Se il numero di messaggi è cambiato, aggiorno tutto e scrollo
+                if (newMessages.length > this.messages.length) {
+                    this.messages = newMessages
+
+                    this.markAsRead()        // Sono arrivati nuovi messaggi mentre guardavo la chat -> Li segno come letti
+
+                    this.scrollToBottom()    //Scrollo in fondo perché c'è un nuovo messaggio
+                }
+                // Se la lunghezza è uguale, aggiorno comunque per vedere le spunte blu o le reazioni
+                else {
+                    // Sovrascrivo la lista per aggiornare lo stato (delivered -> read)
+                    this.messages = newMessages 
+                }
+
+            } catch (e) {
+                if (e.isCanceled) return
+                console.error("Polling error", e)
+            }
+        },
+
+        // Chiama l'API per segnare come letto
+        async markAsRead() {
+            if (this.messages.length > 0 && this.selectedChatId) {
+                // L'ultimo messaggio (il più recente) è l'ultimo della lista (perché ho fatto reverse/push)
+                const lastMsg = this.messages[this.messages.length - 1]
+                
+                // Chiamp l'API
+                await api.markAsRead(this.username, this.selectedChatId, lastMsg.id)
+                
+                // Aggiorno localmente il contatore della chat sidebar a 0
+                const chat = this.conversations.find(c => c.id === this.selectedChatId)
+                if (chat) chat.unreadCount = 0
+            }
+        },
+
+        // Funzione per aggiornare la lista conversazioni (Sidebar)
+        async refreshConversations() {
+            try {
+                const response = await api.getConversations(this.username)
+                this.conversations = (response.conversations || []).filter(c => c) // Aggiungo .filter(c => c) per rimuovere i null
+            } catch (e) {
+                console.error("Polling conversations error", e)
+            }
+        },
+
+        // ----------------
+
+        ////## Upload messaggi immagini
+
+        // Funzione che simula il click sull'input nascosto
+        triggerFileUpload() {
+            this.$refs.fileInput.click() 
+        },
+
+        // Funzione chiamata quando l'utente ha selezionato un file
+        async handleFileUpload(event) {
+            const file = event.target.files[0]
+            if (!file) return
+
+            // Reset dell'input (così può ricaricare lo stesso file se sbaglia)
+            event.target.value = null
+
+            try {
+                // Carico l'immagine sul server
+                // Ricordo: "media" è il tipo che ho definito nel backend per le chat (le immagini che invio nella chat)
+                const response = await api.uploadFile(file, 'media')
+                const imageUrl = response.url
+
+                // Invio l'URL come se fosse un messaggio normale
+                await api.sendMessage(this.username, this.selectedChatId, imageUrl)
+                
+                // Aggiorno la lista messaggi
+                await this.refreshChat()
+                this.scrollToBottom()
+
+            } catch (e) {
+                alert("Error uploading image: " + e.toString())
+            }
+        },
+
+        // Helper per capire se una stringa è un'immagine
+        isImage(content) {
+            if (!content) return false
+            // Controllo se inizia con http e finisce con estensioni immagini
+            return content.startsWith('http') && 
+                (content.match(/\.(jpeg|jpg|gif|png)$/i) != null)
+        },
+
+        // Gestisce il click sulla barra in alto
+        async openChatInfo() {
+            // Recupero la chat attiva
+            const chat = this.conversations.find(c => c.id === this.selectedChatId)
+            if (!chat) return
+
+            this.showInfoModal = true // Apro il modale
+            
+            // Reset dati precedenti 
+            this.groupInfo = null
+            this.userInfo = null
+
+            // Logica Differente in base al tipo di Conversazione (di Gruppo o Privata)
+            if (chat.conversationType === 'group') {
+                try {
+                    // API Gruppo
+                    this.groupInfo = await api.getGroupChat(this.username, chat.id)
+                } catch (e) {
+                    alert("Error loading group info: " + e.toString())
+                    this.showInfoModal = false
+                }
+            } else {
+                // Logica Chat Privata
+                try {
+                    // API Utente: Uso la stessa chiamata del profilo, ma chiedendo l'username dell'altro (incosistenza del nome della funzione, ma preferisco fare cosi piuttosto che clonare codice) --> Potrei fare un generico getProfile()
+                    this.userInfo = await api.getMyProfile(chat.recipientUsername)
+                } catch (e) {
+                    alert("Error loading user info: " + e.toString())
+                    this.showInfoModal = false
+                }
+            }
+        },
+
+        // ----------------
+
+        ////## Gestione Gruppi
+
+        // Cerca utenti da aggiungere al gruppo
+        async searchUsersForGroup() {
+            if (this.groupSearchQuery.length < 1) {
+                this.groupSearchResults = []
+                return
+            }
+            try {
+                const response = await api.searchUsers(this.username, this.groupSearchQuery)
+                // Filtro: toglie me stesso (utente loggato in sessione) e chi è già stato selezionato
+                this.groupSearchResults = response.users.filter(u => 
+                    u.username !== this.username && 
+                    !this.selectedUsers.some(sel => sel.id === u.id)
+                )
+            } catch (e) {
+                console.error(e)
+            }
+        },
+
+        // Aggiunge/Rimuove un utente dalla lista "da aggiungere"
+        toggleUserSelection(user) {
+            // Se c'è già, lo tolgo
+            if (this.selectedUsers.some(u => u.id === user.id)) {
+                this.selectedUsers = this.selectedUsers.filter(u => u.id !== user.id)
+            } else {
+                // Altrimenti lo aggiungo
+                this.selectedUsers.push(user)
+            }
+            // Pulisco la ricerca
+            this.groupSearchQuery = ""
+            this.groupSearchResults = []
+        },
+
+        // Chiama l'API per creare il gruppo
+        async createGroup() {
+            if (!this.newGroupName.trim()) {
+                alert("Please enter a group name")
+                return
+            }
+            if (this.selectedUsers.length === 0) {
+                alert("Select at least one member")
+                return
+            }
+
+            try {
+                // Estraggo solo gli ID
+                const memberIds = this.selectedUsers.map(u => u.id)
+                
+                // Chiamata API
+                const newGroup = await api.createGroup(this.username, this.newGroupName, memberIds)
+                
+                // Chiudo tutto e resetto
+                this.showGroupModal = false
+                this.newGroupName = ""
+                this.selectedUsers = []
+                
+                // Ricarico la lista e apro il nuovo gruppo
+                await this.loadData()
+                this.selectChat(newGroup.id)
+
+            } catch (e) {
+                alert("Error creating group: " + e.toString())
+            }
+        },
+
+
+        // Funzione per ordinare i membri: Admin prima degli altri membri "Normali"
+        // Helper per ordinare i membri: Admin prima degli altri
+        getSortedMembers() {
+            // Controllo di sicurezza: se members è nullo o indefinito, ritorno array vuoto
+            if (!this.groupInfo || !this.groupInfo.members) return []
+            
+            // Creo una copia sicura
+            return [...this.groupInfo.members].sort((a, b) => {
+                // a e b ora sono OGGETTI (dopo la modifica che ho implementato in struct) { userId: "...", username: "..." }
+                
+                // Recupero gli ID per controllare se sono admin
+                // (admins rimane un array di stringhe nel backend)
+                const idA = a.userId
+                const idB = b.userId
+                
+                const isAdminA = this.groupInfo.admins.includes(idA)
+                const isAdminB = this.groupInfo.admins.includes(idB)
+                const isMeA = idA === this.myProfile.id
+                const isMeB = idB === this.myProfile.id
+
+                // Logica di ordinamento
+                if (isMeA) return -1 // Utente Loggato sempre primo
+                if (isMeB) return 1
+                if (isAdminA && !isAdminB) return -1 // Admin sopra
+                if (!isAdminA && isAdminB) return 1
+                
+                // Ordine alfabetico per nome (scelta implementativa, cosi da trovare un utente se lo si ricerca nel gruppo)
+                return a.username.localeCompare(b.username)
+            })
+        },
+
+
+        // -------------------
+        
+        
+        // Formatto data e ora in modo sicuro
+        formatDateTime(dateString) {
+            if (!dateString) return ''
+            const date = new Date(dateString)
+            // Controllo se la data è valida
+            if (isNaN(date.getTime())) return ''
+            
+            return date.toLocaleString([], {
+                day: '2-digit', 
+                month: '2-digit', 
+                year: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit'
+            })
+        },
+
+        // -------------------
+
+        // Helper sicuro per la data della sidebar
+        getLastMessageTime(chatObj) {
+            if (!chatObj || !chatObj.dtLastMessage) return ""
+            return this.formatDateTime(chatObj.dtLastMessage)
+        },
+
+        // -------------------
+
+
+        logout() {
+            localStorage.clear()
+            this.$router.push('/login')
+        }
+
+    },
+
+    // MOUNTED: Avvio del ciclo infinito 
+    mounted() {
+        if (!this.username) {
+            this.$router.push('/login')
+            return
+        }
+        this.loadData()
+
+        // POLLING: Ogni 3 secondi aggiorna tutto
+        this.pollingInterval = setInterval(() => {
+            this.refreshConversations() // Aggiorna la lista a sinistra
+            this.refreshChat()          // Aggiorna la chat a destra (se aperta)
+        }, 3000)
+    },
+
+    // UNMOUNTED: Pulizia quando chiudo la pagina 
+    unmounted() {
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval)
+        }
+    }
 }
 </script>
 
-<template>
-	<div>
-		<div
-			class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-			<h1 class="h2">Home page</h1>
-			<div class="btn-toolbar mb-2 mb-md-0">
-				<div class="btn-group me-2">
-					<button type="button" class="btn btn-sm btn-outline-secondary" @click="refresh">
-						Refresh
-					</button>
-					<button type="button" class="btn btn-sm btn-outline-secondary" @click="exportList">
-						Export
-					</button>
-				</div>
-				<div class="btn-group me-2">
-					<button type="button" class="btn btn-sm btn-outline-primary" @click="newItem">
-						New
-					</button>
-				</div>
-			</div>
-		</div>
 
-		<ErrorMsg v-if="errormsg" :msg="errormsg"></ErrorMsg>
-	</div>
+<template>
+    <div class="container-fluid vh-100 p-0 overflow-hidden">
+        <div class="row g-0 h-100">
+            
+            <div class="col-md-4 col-lg-3 d-flex flex-column border-end bg-light h-100">
+                
+                <div class="p-3 bg-secondary text-white d-flex align-items-center justify-content-between">
+                    
+                    <div 
+                        class="d-flex align-items-center" 
+                        style="cursor: pointer;" 
+                        @click="goToProfile"
+                        title="Edit Profile"
+                    >
+                        <img 
+                            :src="myProfile?.profilePhoto || '/default_avatar.jpg'" 
+                            class="rounded-circle me-2" 
+                            width="40" height="40" 
+                            style="object-fit: cover;"
+                        >
+                        <span class="fw-bold">{{ myProfile?.username }}</span>
+                    </div>
+                    <div>
+                        <button @click="showGroupModal = true" class="btn btn-sm btn-light me-2" title="New Group">
+                            <i class="feather icon-plus">+</i>
+                        </button>
+
+                        <button @click="logout" class="btn btn-sm btn-dark">Logout</button>
+                    </div>
+                </div>
+
+                <div class="p-2 border-bottom">
+                    <input 
+                        type="text" 
+                        class="form-control" 
+                        placeholder="Search users..." 
+                        v-model="searchQuery"
+                        @input="doSearch"
+                    >
+                </div>
+
+                <div class="flex-grow-1 overflow-auto bg-white">
+                    
+                    <div v-if="isSearching">
+                        <div class="p-2 text-muted small bg-light">Search Results</div>
+                        
+                        <button 
+                            v-for="user in searchResults" 
+                            :key="user.id"
+                            @click="startChatWith(user)"
+                            class="list-group-item list-group-item-action d-flex align-items-center p-3"
+                        >
+                            <img 
+                                :src="user.profilePhoto || '/default_avatar.jpg'" 
+                                class="rounded-circle me-3" 
+                                width="40" height="40"
+                                style="object-fit: cover;"
+                            >
+                            <div>
+                                <h6 class="mb-0">{{ user.username }}</h6>
+                                <small class="text-success">Click to chat</small>
+                            </div>
+                        </button>
+
+                        <div v-if="searchResults.length === 0" class="text-center p-3 text-muted">
+                            No users found.
+                        </div>
+                    </div>
+
+                    <div v-else class="list-group list-group-flush">
+                        
+                        <div v-if="loading" class="text-center p-4">Loading chats...</div>
+                        
+                        <div v-else-if="errorMsg" class="text-danger p-3">{{ errorMsg }}</div>
+                        
+                        <div v-else>
+                            <button 
+                                v-for="chat in conversations" 
+                                :key="chat.id"
+                                @click="selectChat(chat.id)"
+                                class="list-group-item list-group-item-action d-flex align-items-center p-3"
+                                :class="{ 'active': selectedChatId === chat.id }"
+                            >
+                                <img 
+                                    :src="getChatPhoto(chat)" 
+                                    class="rounded-circle me-3" 
+                                    width="50" height="50"
+                                    style="object-fit: cover;"
+                                >
+                                
+                                <div class="flex-grow-1 overflow-hidden">
+                                    <div class="d-flex justify-content-between align-items-baseline">
+                                        <h6 class="mb-0 text-truncate">{{ getChatName(chat) }}</h6>
+                                        
+                                        <span v-if="chat.unreadCount > 0" class="badge rounded-pill bg-danger ms-2">
+                                            {{ chat.unreadCount }}
+                                        </span>
+
+                                        <small class="text-muted" style="font-size: 0.75rem;">
+                                            {{ getLastMessageTime(chat) }}
+                                        </small>
+                                    </div>
+
+                                     <!-- Se la chat è quella selezionata, il testo dell'anteprima diventa bianco, cosi da poterlo visualizzare meglio-->
+                                    <p 
+                                        class="mb-0 small text-truncate"
+                                        :class="selectedChatId === chat.id ? 'text-white-50' : 'text-muted'"
+                                    >
+                                        {{ chat.snippet }}
+                                    </p>
+
+                                </div>
+                            </button>
+
+                            <div v-if="conversations.length === 0" class="text-center text-muted mt-5">
+                                No conversations yet.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8 col-lg-9 d-flex flex-column h-100 bg-chat">
+                
+                <div v-if="selectedChatId" class="h-100 d-flex flex-column justify-content-between">
+
+                    <div 
+                        class="p-2 border-bottom bg-white d-flex align-items-center shadow-sm" 
+                        style="z-index: 10; min-height: 60px; cursor: pointer;"
+                        @click="openChatInfo"
+                    >
+                        <div class="d-flex align-items-center" v-if="activeChat">
+                            <img 
+                                :src="getChatPhoto(activeChat)" 
+                                class="rounded-circle me-2 border" 
+                                width="40" height="40" 
+                                style="object-fit: cover;"
+                            >
+                            <div>
+                                <h6 class="mb-0 fw-bold">{{ getChatName(activeChat) }}</h6>
+                                <small class="text-muted" style="font-size: 0.75rem;">
+                                    {{ activeChat.conversationType === 'group' ? 'Group Chat' : 'Private Chat' }}
+                                </small>
+                            </div>
+                        </div>
+                        <h5 v-else class="mb-0">Chat</h5>
+                    </div>
+
+                    <div 
+                        ref="chatContainer"
+                        class="flex-grow-1 overflow-auto p-3 d-flex flex-column" 
+                        style="background: rgba(255,255,255,0.6);"
+                    >
+                        
+                        <div v-if="chatLoading" class="text-center mt-5">
+                            Loading messages...
+                        </div>
+
+                        <!-- Se senderUsername del messaggio è uguale al "Mio" username, allora viene messo a destra.-->
+                        <div v-else v-for="msg in messages" :key="msg.id" class="mb-3 d-flex"
+                             :class="msg.senderUsername === username ? 'justify-content-end' : 'justify-content-start'">
+                            
+                            <div class="card shadow-sm border-0" 
+                                 :class="msg.senderUsername === username ? 'bg-success text-white' : 'bg-white text-dark'"
+                                 style="max-width: 70%; min-width: 150px;">
+                                
+                                <div class="card-body p-2">
+                                    <small v-if="msg.senderUsername !== username" class="fw-bold d-block mb-1 text-primary">
+                                        {{ msg.senderUsername }}
+                                        
+                                        <span 
+                                            v-if="currentChatAdmins.includes(msg.senderUserId)" 
+                                            class="badge bg-light text-secondary border ms-2" 
+                                            style="font-size: 0.7em; vertical-align: middle;"
+                                        >
+                                            Admin
+                                        </span>
+                                    </small>
+
+                                    <div v-if="isImage(msg.contentMess)">
+                                        <img 
+                                            :src="msg.contentMess" 
+                                            class="img-fluid rounded mb-1" 
+                                            style="max-height: 300px; cursor: pointer;"
+                                            alt="Chat Image"
+                                        >
+                                    </div>
+
+                                    <p v-else class="mb-1 text-break" style="white-space: pre-wrap;">{{ msg.contentMess }}</p>
+                                    
+                                    <div class="text-end lh-1" style="font-size: 0.7rem; opacity: 0.8;">
+                                        {{ formatDateTime(msg.timestamp) }}
+                                        
+                                        <span v-if="msg.senderUsername === username" class="ms-1">
+                                            <span v-if="msg.statusInfo === 'read'" class="text-primary fw-bold" style="font-size: 0.8rem;">✓✓</span>
+                                            <span v-else>✓</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="!chatLoading && messages.length === 0" class="text-center text-muted mt-5">
+                            <p>No messages yet. Say hello! 👋</p>
+                        </div>
+
+                    </div>
+
+                    <div class="p-3 bg-light border-top d-flex gap-2 align-items-center">
+                        
+                        <input 
+                            type="file" 
+                            ref="fileInput" 
+                            style="display: none" 
+                            accept="image/png, image/jpeg, image/gif"
+                            @change="handleFileUpload"
+                        >
+
+                        <button class="btn btn-outline-secondary border-0" @click="triggerFileUpload" title="Send Image">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-camera"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                        </button>
+
+                        <input 
+                            type="text" 
+                            class="form-control" 
+                            placeholder="Type a message..."
+                            v-model="newMessageText"
+                            @keyup.enter="sendMsg"
+                        >
+                        
+                        <button class="btn btn-primary" @click="sendMsg">
+                            Send
+                        </button>
+                    </div>
+                </div>
+
+                <div v-else class="h-100 d-flex flex-column align-items-center justify-content-center text-muted bg-light">
+                    <h3 class="fw-light">WASAtext Web</h3>
+                    <p>Select a chat to start messaging</p>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Finestra sovrimpressione quando clicco "+" per creare un gruppo  -> MODALE CREAZIONE GRUPPO -->
+         <div v-if="showGroupModal" class="modal-overlay">
+            <div class="modal-content p-4 shadow rounded bg-white" style="max-width: 500px; width: 90%;">
+                
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4>New Group</h4>
+                    <button @click="showGroupModal = false" class="btn btn-close"></button>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Group Name</label>
+                    <input type="text" class="form-control" v-model="newGroupName" placeholder="e.g. Best Friends">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Add Members</label>
+                    
+                    <input 
+                        type="text" 
+                        class="form-control mb-2" 
+                        placeholder="Search users to add..." 
+                        v-model="groupSearchQuery"
+                        @input="searchUsersForGroup"
+                    >
+
+                    <div v-if="groupSearchResults.length > 0" class="list-group mb-2 border">
+                        <button 
+                            v-for="user in groupSearchResults" 
+                            :key="user.id" 
+                            @click="toggleUserSelection(user)"
+                            class="list-group-item list-group-item-action"
+                        >
+                            {{ user.username }}
+                        </button>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 mt-2">
+                        <span v-for="user in selectedUsers" :key="user.id" class="badge bg-primary d-flex align-items-center p-2">
+                            {{ user.username }}
+                            <span @click="toggleUserSelection(user)" class="ms-2 cursor-pointer text-white" style="cursor: pointer;">&times;</span>
+                        </span>
+                        <span v-if="selectedUsers.length === 0" class="text-muted small">No members selected</span>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <button @click="showGroupModal = false" class="btn btn-secondary">Cancel</button>
+                    <button @click="createGroup" class="btn btn-success">Create Group</button>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- MODALE INFO Gruppo / Profilo Utente -->
+        <div v-if="showInfoModal" class="modal-overlay" @click.self="showInfoModal = false">
+            <div class="modal-content bg-white shadow rounded overflow-hidden" style="max-width: 400px; width: 90%; max-height: 85vh; display: flex; flex-direction: column;">
+                
+                <div class="d-flex justify-content-end p-2 position-absolute w-100" style="z-index: 10;">
+                    <button @click="showInfoModal = false" class="btn-close bg-white p-2 rounded-circle shadow-sm"></button>
+                </div>
+
+                <div v-if="!groupInfo && !userInfo" class="p-5 text-center">
+                    <LoadingSpinner />
+                </div>
+
+                <div v-else-if="groupInfo">
+                    <div class="text-center p-4 bg-light border-bottom">
+                        <img :src="groupInfo.groupPhoto || '/default_avatar.jpg'" class="rounded-circle shadow mb-3" width="120" height="120" style="object-fit: cover;">
+                        <h4 class="fw-bold mb-0">{{ groupInfo.groupName }}</h4>
+                        <p class="text-muted small">Group • {{ groupInfo.members.length }} participants</p>
+                        
+                        <button 
+                            v-if="myProfile && groupInfo.admins.includes(myProfile.id)" 
+                            @click="$router.push('/groups/' + selectedChatId + '/edit')"
+                            class="btn btn-sm btn-outline-secondary mt-2"
+                        >
+                            Edit Group
+                        </button>
+                    </div>
+
+                    <div class="p-3 border-bottom">
+                        <small class="fw-bold text-muted" style="font-size: 0.7rem;">DESCRIPTION</small>
+                        <p class="mb-0 mt-1">{{ groupInfo.groupDescription || 'No description' }}</p>
+                    </div>
+
+                    <div class="flex-grow-1 overflow-auto p-0" style="max-height: 180px;">
+                        <div class="p-3 bg-light text-muted small fw-bold">PARTICIPANTS</div>
+                        <ul class="list-group list-group-flush">
+                            <li v-for="member in getSortedMembers()" :key="member.userId" class="list-group-item d-flex justify-content-between align-items-center">
+                                
+                                <div class="d-flex align-items-center">
+                                    <img src="/default_avatar.jpg" class="rounded-circle me-2" width="30" height="30">
+                                    <span>
+                                        {{ member.username }}
+                                        <span v-if="myProfile && member.userId === myProfile.id" class="text-muted fst-italic ms-1">(You)</span>
+                                    </span>
+                                </div>
+
+                                <span v-if="groupInfo.admins.includes(member.userId)" class="badge bg-light text-success border border-success">Admin</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div v-else-if="userInfo">
+                    <div class="text-center p-5 pb-4">
+                        <img 
+                            :src="userInfo.profilePhoto || '/default_avatar.jpg'" 
+                            class="rounded-circle shadow mb-3" 
+                            width="150" height="150" 
+                            style="object-fit: cover;"
+                        >
+                        <h3 class="fw-bold mb-1">{{ userInfo.username }}</h3>
+                        <span class="badge bg-primary rounded-pill">User</span>
+                    </div>
+
+                    <div class="p-4 border-top">
+                        <small class="fw-bold text-primary text-uppercase" style="font-size: 0.75rem;">Status</small>
+                        <p class="fs-5 mt-1 fst-italic text-dark">
+                            "{{ userInfo.status || 'Hey there! I am using WASAtext.' }}"
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        
+    </div>
 </template>
 
-<style>
+<style scoped>
+/* Stile per lo sfondo della chat a destra */
+.bg-chat {
+    background-color: #efeae2; 
+    /* pattern di sfondo */
+    background-image: url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png");
+    background-repeat: repeat;
+}
+
+/* Personalizzazione scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+::-webkit-scrollbar-thumb {
+    background: #ccc; 
+    border-radius: 3px;
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5); /* Sfondo scuro semi-trasparente */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000; /* Sopra a tutto */
+}
 </style>

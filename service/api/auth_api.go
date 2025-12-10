@@ -79,7 +79,8 @@ func (rt *_router) registerUser(w http.ResponseWriter, r *http.Request, ps httpr
 	}
 	// Default profile photo (se non fornita dall'utente)
 	if newUser.ProfilePhoto == "" {
-		newUser.ProfilePhoto = "https://web-chat-app.com/users/profile-images/default.png"
+		// Lo slash iniziale indica la root del server frontend
+		newUser.ProfilePhoto = "/default_avatar.jpg"
 	}
 
 	// 4. Chiamata al Database

@@ -39,7 +39,7 @@ func createTableParticipants(db *sql.DB) error {
 // GetConversations: Logica ibrida
 func (db *appdbimpl) GetConversations(userID string) ([]Conversation, error) {
 	query := `
-		SELECT c.id, c.type, c.group_name, c.group_photo, c.group_description, c.last_message_at
+		SELECT c.id, c.type, c.group_name, c.group_photo, c.group_description, c.last_message_at, p.last_read_message_id
 		FROM conversations c
 		JOIN participants p ON c.id = p.conversation_id
 		WHERE p.user_id = ?
@@ -55,10 +55,10 @@ func (db *appdbimpl) GetConversations(userID string) ([]Conversation, error) {
 
 	for rows.Next() {
 		var c Conversation
-		var gName, gPhoto, gDesc sql.NullString
+		var gName, gPhoto, gDesc, lastReadId sql.NullString
 		var lastMsgAt sql.NullTime
 
-		err := rows.Scan(&c.ID, &c.ConversationType, &gName, &gPhoto, &gDesc, &lastMsgAt)
+		err := rows.Scan(&c.ID, &c.ConversationType, &gName, &gPhoto, &gDesc, &lastMsgAt, &lastReadId)
 		if err != nil {
 			return nil, err
 		}
@@ -69,7 +69,28 @@ func (db *appdbimpl) GetConversations(userID string) ([]Conversation, error) {
 			c.DtLastMessage = time.Now()
 		}
 
-		// Get snippet
+		// Calcolo Unread Count ESCLUDENDO i messaggi inviati da me stesso (sender_id != userID)
+		// Mi dava problemi di visualizzazione nel frontend --> mi mostrava le notifiche "non letto" ai messaggi inviati da me (con me intendo sempre utente loggato in sessione)
+		if lastReadId.Valid && lastReadId.String != "" {
+			// 1° Caso: Ho già letto qualcosa in passato.
+			// Conto i messaggi che sono NUOVI (> last_read) E che NON sono miei (!= userID)
+			countQuery := `
+				SELECT COUNT(*) 
+				FROM messages 
+				WHERE conversation_id = ? 
+				AND created_at > (SELECT created_at FROM messages WHERE id = ?)
+				AND sender_id != ? 
+			`
+			_ = db.c.QueryRow(countQuery, c.ID, lastReadId.String, userID).Scan(&c.UnreadCount)
+		} else {
+			// 2° Caso: Non ho mai letto nulla (chat nuova o cursore vuoto).
+			// Conto TUTTI i messaggi della chat che NON sono miei.
+			_ = db.c.QueryRow(`SELECT COUNT(*) FROM messages WHERE conversation_id = ? AND sender_id != ?`, c.ID, userID).Scan(&c.UnreadCount)
+		}
+
+		// --------------------------------------------
+
+		// Recupero snippet
 		_ = db.c.QueryRow(`SELECT content FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 1`, c.ID).Scan(&c.Snippet)
 
 		switch c.ConversationType {
@@ -179,20 +200,39 @@ func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID
 
 		defer func() { _ = rows.Close() }()
 
-		var members []string
+		var members []GroupMember
 		var admins []string
 
 		for rows.Next() {
 			var uid string
 			var isAdmin bool
 			if err := rows.Scan(&uid, &isAdmin); err != nil {
+				rows.Close()
 				return Conversation{}, err
 			}
-			members = append(members, uid)
+
+			// Recupero i dettagli dell'utente usando getUserByID
+			user, err := db.GetUserByID(uid)
+
+			var username string
+			if err == nil {
+				username = user.Username
+			} else {
+				// Se l'utente non esiste più (es. cancellato), metto un placeholder
+				username = "Unknown"
+			}
+
+			// Aggiungo l'oggetto completo alla lista
+			members = append(members, GroupMember{
+				UserID:   uid,
+				Username: username,
+			})
+			// -------------------------------------------
 			if isAdmin {
 				admins = append(admins, uid)
 			}
 		}
+		rows.Close() // Chiudo il cursore manualmente alla fine
 
 		if err := rows.Err(); err != nil {
 			return Conversation{}, err
@@ -283,15 +323,22 @@ func (db *appdbimpl) CreateGroup(name string, desc string, photo string, creator
 		return Conversation{}, err
 	}
 
+	// Qui inserisco FORZATAMENTE chi crea il gruppo
+	// E lo setto come ADMIN (is_admin = 1)
 	_, err = tx.Exec(`INSERT INTO participants (conversation_id, user_id, is_admin) VALUES (?, ?, 1)`, groupID, creatorID)
 	if err != nil {
 		return Conversation{}, err
 	}
 
+	// Ciclo la lista degli altri membri che mi ha mandato il Frontend
 	for _, memberID := range membersIDs {
+		// Se Colui che crea il gruppo, è tra i membri da aggiungere, allora continuo
 		if memberID == creatorID {
 			continue
 		}
+
+		// Se il Frontend per sbaglio inserisce l'ID dello user loggato in sessione anche nella lista "members",
+		// questo IF lo salta. Così evito che lo user evitidi di provare a inserirsi due volte --> crash Unicità SQL.
 		_, err = tx.Exec(`INSERT INTO participants (conversation_id, user_id, is_admin) VALUES (?, ?, 0)`, groupID, memberID)
 		if err != nil {
 			return Conversation{}, err

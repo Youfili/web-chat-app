@@ -63,6 +63,21 @@ func (db *appdbimpl) CreateMessage(msg Message) (Message, error) {
 }
 
 func (db *appdbimpl) GetMessages(conversationID string, limit int, before time.Time) ([]Message, error) {
+	// Recupero il timestamp dell'ultimo messaggio letto DALL'ALTRO utente (o dagli altri nel caso di una conversazione di gruppo)
+	var otherLastReadTime sql.NullTime
+
+	// Questa query trova il timestamp del messaggio letto più "vecchio" tra gli altri partecipanti.
+	// Se gli altri hanno letto messaggi più recenti del mio, allora il mio è "read".
+	timeQuery := `
+		SELECT MAX(m.created_at)
+		FROM participants p
+		JOIN messages m ON p.last_read_message_id = m.id
+		WHERE p.conversation_id = ?
+	`
+
+	// Prendo il MAX data di lettura di Qualsiasi partecipante nella chat.
+	_ = db.c.QueryRow(timeQuery, conversationID).Scan(&otherLastReadTime)
+
 	query := `
 		SELECT m.id, m.content, m.created_at, m.is_forwarded, m.sender_id, u.username
 		FROM messages m
@@ -85,6 +100,15 @@ func (db *appdbimpl) GetMessages(conversationID string, limit int, before time.T
 			return nil, err
 		}
 		m.ConversationID = conversationID
+
+		// Logica Spunta Blu
+		m.StatusInfo = "delivered" // Default
+
+		// Se c'è qualcuno che ha letto un messaggio creato DOPO o UGUALE a questo:
+		if otherLastReadTime.Valid && !m.Timestamp.After(otherLastReadTime.Time) {
+			m.StatusInfo = "read"
+		}
+
 		msgs = append(msgs, m)
 	}
 
