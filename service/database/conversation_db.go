@@ -207,7 +207,7 @@ func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID
 			var uid string
 			var isAdmin bool
 			if err := rows.Scan(&uid, &isAdmin); err != nil {
-				rows.Close()
+				defer func() { _ = rows.Close() }()
 				return Conversation{}, err
 			}
 
@@ -232,7 +232,7 @@ func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID
 				admins = append(admins, uid)
 			}
 		}
-		rows.Close() // Chiudo il cursore manualmente alla fine
+		defer func() { _ = rows.Close() }() // Chiudo il cursore manualmente alla fine
 
 		if err := rows.Err(); err != nil {
 			return Conversation{}, err
