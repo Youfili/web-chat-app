@@ -2,11 +2,12 @@
 import { nextTick } from 'vue'
 import api from '@/services/api'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
+import { emojiListSet } from '@/services/emoji.js';
 
 export default {
     // Registrazione componenti
     components: {
-        LoadingSpinner
+        LoadingSpinner,
     },
     
     // Parte del Pattern in cui dichiaro tutte le variabili reattive 
@@ -48,7 +49,12 @@ export default {
             groupInfo: null,            // Conterrà i dettagli del gruppo cliccato
 
             // Variabili Info Utente
-            userInfo: null              // Dati utente chat privata
+            userInfo: null,              // Dati utente chat privata
+
+            // Variabile Emoji
+            showEmojiPicker: false,     // Variabile per Mostrare/Nascondere le Emoji
+            // Lista di Emoji
+            emojiList: emojiListSet
         }
     },
 
@@ -107,8 +113,9 @@ export default {
 
 
         async selectChat(chatId) {
-            // Aggiorno ID chat selezionata
-            this.selectedChatId = chatId
+            this.showEmojiPicker = false // Chiudo Emoji Panel se aperto
+            this.selectedChatId = chatId    // Aggiorno ID chat selezionata
+
             // Resetto e attivo loading
             this.messages = [] 
             this.currentChatAdmins = [] // Reset
@@ -159,12 +166,47 @@ export default {
             }
         },
 
+        // Funzione per inserire un Emoji nel messaggio che voglio inviare
+        addEmoji(emojiChar) {
+            // Ottengo il riferimento all'elemento input del DOM
+            const input = this.$refs.messageInput;
+            
+            // Se per qualche motivo l'input non esiste, aggiungo solo alla fine (fallback)
+            if (!input) {
+                this.newMessageText += emojiChar;
+                return;
+            }
+
+            // Trovo la posizione del cursore (inizio e fine selezione)
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            
+            // Spezzo il testo attuale in due parti e inserisco l'emoji nel mezzo
+            const text = this.newMessageText;
+            const before = text.substring(0, start);
+            const after  = text.substring(end);
+            
+            this.newMessageText = before + emojiChar + after;
+
+            // Dopo che Vue ha aggiornato il DOM, rimetto il focus e sposto il cursore
+            this.$nextTick(() => {
+                input.focus();
+                // Sposto il cursore DOPO l'emoji appena inserita
+                const newCursorPos = start + emojiChar.length;
+                input.setSelectionRange(newCursorPos, newCursorPos);
+            });
+        },
+
+        
         // Invia un nuovo messaggio
         async sendMsg() {
             // Evito invii vuoti o se nessuna chat è selezionata
             if (!this.newMessageText.trim() || !this.selectedChatId) return
 
             try {
+
+                this.showEmojiPicker = false // Chiudo le emoji quando invio
+
                 // Chiamata API
                 const response = await api.sendMessage(this.username, this.selectedChatId, this.newMessageText)
 
@@ -202,6 +244,8 @@ export default {
 
             this.isSearching = true
             try {
+                this.showEmojiPicker = false // Chiudo Emoji Panel se aperto
+
                 const response = await api.searchUsers(this.username, this.searchQuery)
                 // Filtro l'utente che ricerca dai risultati
                 this.searchResults = response.users.filter(u => u.username !== this.username)
@@ -213,6 +257,8 @@ export default {
         // Funzione chiamata quando clicco su un utente cercato
         async startChatWith(user) {
             try {
+                this.showEmojiPicker = false // Chiudo Emoji Panel se aperto
+
                 // Creo (o recupero, se già esiste) la chat privata
                 // Nota: Qui metto un messaggio iniziale di benvenuto sandard --> la mia API createPrivateChat Richiede un initialMessage (scelta implementativa personale)
                 const chat = await api.createPrivateChat(this.username, user.id, "👋")
@@ -307,6 +353,8 @@ export default {
             event.target.value = null
 
             try {
+                this.showEmojiPicker = false // Chiudo Emoji Panel se aperto
+
                 // Carico l'immagine sul server
                 // Ricordo: "media" è il tipo che ho definito nel backend per le chat (le immagini che invio nella chat)
                 const response = await api.uploadFile(file, 'media')
@@ -334,6 +382,8 @@ export default {
 
         // Gestisce il click sulla barra in alto
         async openChatInfo() {
+            this.showEmojiPicker = false // Chiudo Emoji Panel se aperto
+
             // Recupero la chat attiva
             const chat = this.conversations.find(c => c.id === this.selectedChatId)
             if (!chat) return
@@ -371,6 +421,8 @@ export default {
 
         // Cerca utenti da aggiungere al gruppo
         async searchUsersForGroup() {
+            this.showEmojiPicker = false // Chiudo Emoji Panel se aperto
+
             if (this.groupSearchQuery.length < 1) {
                 this.groupSearchResults = []
                 return
@@ -403,6 +455,8 @@ export default {
 
         // Chiama l'API per creare il gruppo
         async createGroup() {
+            this.showEmojiPicker = false // Chiudo Emoji Panel se aperto
+
             if (!this.newGroupName.trim()) {
                 alert("Please enter a group name")
                 return
@@ -436,6 +490,8 @@ export default {
 
         // Metodo che permette all'utente loggato in sessione di Uscire da un gruppo di cui fa parte
         async leaveGroup() {
+            this.showEmojiPicker = false // Chiudo Emoji Panel se aperto
+
             // Controllo di sicurezza (classico, giusto per)
             if (!this.selectedChatId) return;
 
@@ -793,7 +849,23 @@ export default {
 
                     </div>
 
-                    <div class="p-3 bg-light border-top d-flex gap-2 align-items-center">
+                    <!-- Barra Bottom della Chat, quella dove inserire il testo, emoji, immagine -->                    
+                    <div class="p-3 bg-light border-top d-flex gap-2 align-items-center position-relative">
+
+                        <div v-if="showEmojiPicker" class="emoji-picker-popup shadow-sm">
+                            <div class="emoji-grid">
+                                <button 
+                                    v-for="emoji in emojiList" 
+                                    :key="emoji" 
+                                    class="emoji-btn"
+                                    type="button"
+                                    @click="addEmoji(emoji)"
+                                    :title="emoji"
+                                >
+                                    {{ emoji }}
+                                </button>
+                            </div>
+                        </div>
                         
                         <input 
                             type="file" 
@@ -803,18 +875,25 @@ export default {
                             @change="handleFileUpload"
                         >
 
+                        <!-- Bottone per inserire Emoji -->
+                        <button class="btn btn-outline-secondary border-0" @click="showEmojiPicker = !showEmojiPicker">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-smile"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
+                        </button>
+
+                        <!-- Bottone per inserire Immagine -->
                         <button class="btn btn-outline-secondary border-0" @click="triggerFileUpload" title="Send Image">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-camera"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
                         </button>
 
                         <input 
-                            type="text" 
+                            ref="messageInput"   type="text" 
                             class="form-control" 
                             placeholder="Type a message..."
                             v-model="newMessageText"
                             @keyup.enter="sendMsg"
                         >
                         
+                        <!-- Bottone per Inviare il Messaggio -->
                         <button class="btn btn-primary" @click="sendMsg">
                             Send
                         </button>
@@ -999,5 +1078,89 @@ export default {
     justify-content: center;
     align-items: center;
     z-index: 1000; /* Sopra a tutto */
+}
+
+/* Stile Emoji */
+/* Container del popup */
+.emoji-picker-popup {
+    position: absolute;
+    bottom: 60px; 
+    left: 20px;
+    width: 320px;
+    height: 250px;
+    background: white;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+}
+
+/* Griglia delle emoji */
+.emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+    padding: 10px;
+    overflow-y: auto; /* scroll */
+    height: 100%;
+    
+    /* Personalizzazione Scrollbar (Chrome/Safari/Edge) */
+    scrollbar-width: thin;
+    scrollbar-color: #cccccc transparent;
+}
+
+/* Stile scrollbar per Webkit (Chrome) */
+.emoji-grid::-webkit-scrollbar {
+    width: 6px;
+}
+.emoji-grid::-webkit-scrollbar-track {
+    background: transparent;
+}
+.emoji-grid::-webkit-scrollbar-thumb {
+    background-color: #cccccc;
+    border-radius: 20px;
+}
+
+/* Bottone Emoji singola */
+.emoji-btn {
+    font-size: 24px; /* Grandezza emoji */
+    padding: 8px 0;
+    cursor: pointer;
+    background: transparent; /* Rimuove sfondo grigio default */
+    border: none;            /* Rimuove bordo 3D default */
+    border-radius: 6px;
+    transition: background-color 0.2s;
+    
+    /* Forza il font emoji colorato su Windows/Mac */
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+    line-height: 1;
+}
+
+/* Effetto Hover (like Whatsapp*/
+.emoji-btn:hover {
+    background-color: #f0f2f5; 
+}
+
+/* Visualizzazione Corretta Emojii */
+
+/* Applico il font corretto all'input di testo e ai messaggi inviati */
+input.form-control, 
+.card-body p {
+    /* Noto Color Emoji --> Debian */
+    font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
+    line-height: 1.5; 
+}
+/* Applico il font anche al testo segnaposto (placeholder) */
+::placeholder {
+   font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
+    opacity: 0.7;
+}
+
+/*  Fix Visualizzazione Emoji Sidebar */
+/* Applico il font corretto ai Nomi (h6), alle Anteprime (p) nella lista */
+.list-group-item h6, 
+.list-group-item p {
+    font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
 }
 </style>
