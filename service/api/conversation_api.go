@@ -151,6 +151,7 @@ func (rt *_router) getPrivateChatById(w http.ResponseWriter, r *http.Request, ps
 	_ = json.NewEncoder(w).Encode(chat)
 }
 
+/*
 func (rt *_router) deletePrivateChat(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	if !rt.checkAuth(w, r, ps.ByName("username")) {
 		return
@@ -168,6 +169,7 @@ func (rt *_router) deletePrivateChat(w http.ResponseWriter, r *http.Request, ps 
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+*/
 
 // ---------------------------------------------------------
 // GRUPPI
@@ -284,16 +286,36 @@ func (rt *_router) addToGroup(w http.ResponseWriter, r *http.Request, ps httprou
 }
 
 func (rt *_router) leaveGroup(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	// Controllo autenticazione
 	if !rt.checkAuth(w, r, ps.ByName("username")) {
 		return
 	}
+	// Recupero ID utente dal database usando lo username nell'URL
 	user, _ := rt.db.GetUserByUsername(ps.ByName("username"))
 
+	// Chiamo la funzione del DB
 	err := rt.db.RemoveGroupMember(ps.ByName("conversationId"), user.ID)
 	if err != nil {
-		http.Error(w, "Error leaving group", http.StatusInternalServerError)
+		// Gestione dei diversi tipi di Errore
+
+		// 1. Blocco Admin (409 Conflict)
+		if errors.Is(err, database.ErrLastAdminCannotLeave) {
+			http.Error(w, "Last admin cannot leave. Promote someone else first.", http.StatusConflict)
+			return
+		}
+
+		// 2. Utente non membro (400 Bad Request o 404 Not Found)
+		if errors.Is(err, database.ErrUserNotMember) {
+			http.Error(w, "User is not a member of this group", http.StatusBadRequest)
+			return
+		}
+
+		// 3. Errore generico (500)
+		rt.baseLogger.Errorf("Error leaving group: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	// Successo (204 No Content)
 	w.WriteHeader(http.StatusNoContent)
 }
 

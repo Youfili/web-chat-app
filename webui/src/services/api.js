@@ -155,6 +155,13 @@ export default {
 		return response.data;
 	},
 
+	// Uscita dell'utente dal gruppo
+    async leaveGroup(username, conversationId) {
+        // Nota: non serve che passo i dati nel body (secondo parametro) perché il backend legge tutto dall'URL
+        const response = await axios.post(`/wasatext/${username}/groups/${conversationId}/leave`);
+        return response.data;
+    },
+
 	// =================================================================
 	// MESSAGES (Con Logica di Abort)
 	// =================================================================

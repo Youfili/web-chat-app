@@ -434,6 +434,63 @@ export default {
         },
 
 
+        // Metodo che permette all'utente loggato in sessione di Uscire da un gruppo di cui fa parte
+        async leaveGroup() {
+            // Controllo di sicurezza (classico, giusto per)
+            if (!this.selectedChatId) return;
+
+            // Conferma utente (per una protezione in più, nel caso l'utente si sbagliasse a cliccare)
+            if (!confirm(`Sei sicuro di voler abbandonare questo gruppo?`)) {
+                return;
+            }
+
+            try {
+                // Chiamata API 
+                await api.leaveGroup(this.username, this.selectedChatId);
+
+                // Success - Aggiorno la UI
+                alert("Hai abbandonato il gruppo con successo.");
+
+                // Rimuovp la chat dalla lista locale (così sparisce subito dalla sidebar)
+                this.conversations = this.conversations.filter(chat => chat.id !== this.selectedChatId);
+
+                // Chiudo eventuali modali aperti
+                this.showInfoModal = false; 
+
+                // Resetto la vista centrale (chiudo la chat)
+                this.selectedChatId = null;
+                this.messages = [];
+                this.groupInfo = null;
+                this.currentChatAdmins = [];
+
+            } catch (error) {
+                // Gestione Errori
+                if (error.response) {
+                    
+                    // CASO 409: IL BLOCCO ADMIN (quello che abbiamo creato nel backend)
+                    if (error.response.status === 409) {
+                        alert("⛔ IMPOSSIBILE USCIRE!\n\nSei l'unico amministratore del gruppo.\nDevi nominare un altro utente come amministratore prima di uscire.");
+                    } 
+                    // CASO 400/404: Utente non trovato o non nel gruppo
+                    else if (error.response.status === 400 || error.response.status === 404) {
+                        alert("Errore: Non sembri far parte di questo gruppo.");
+                        // Chiudo comunque la chat per coerenza
+                        this.selectedChatId = null;
+                        this.conversations = this.conversations.filter(c => c.id !== this.selectedChatId);
+                    } 
+                    // Errore Generico Server
+                    else {
+                        console.error("Errore server:", error);
+                        alert("Si è verificato un errore durante l'uscita. Riprova.");
+                    }
+                } else {
+                    console.error("Errore di rete:", error);
+                    alert("Errore di connessione al server.");
+                }
+            }
+        },
+
+
         // Funzione per ordinare i membri: Admin prima degli altri membri "Normali"
         // Helper per ordinare i membri: Admin prima degli altri
         getSortedMembers() {
@@ -837,6 +894,7 @@ export default {
                     <LoadingSpinner />
                 </div>
 
+                 <!-- Sezione Info Gruppo -->
                 <div v-else-if="groupInfo">
                     <div class="text-center p-4 bg-light border-bottom">
                         <img :src="groupInfo.groupPhoto || '/default_avatar.jpg'" class="rounded-circle shadow mb-3" width="120" height="120" style="object-fit: cover;">
@@ -874,8 +932,17 @@ export default {
                             </li>
                         </ul>
                     </div>
+
+                    <!-- Possibilità di Lasciare il Gruppo-->
+                    <div class="p-3 border-top mt-auto">
+                        <button @click="leaveGroup" class="btn btn-danger w-100 d-flex align-items-center justify-content-center gap-2">
+                            <i class="feather icon-log-out"></i> Leave Group
+                        </button>
+                    </div>
+
                 </div>
 
+                <!-- Sezione Info Utente Privato -->
                 <div v-else-if="userInfo">
                     <div class="text-center p-5 pb-4">
                         <img 
@@ -894,6 +961,7 @@ export default {
                             "{{ userInfo.status || 'Hey there! I am using WASAtext.' }}"
                         </p>
                     </div>
+
                 </div>
 
             </div>

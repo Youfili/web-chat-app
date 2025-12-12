@@ -876,27 +876,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-    delete:                                                 # elimino la mia conversazione singola (con un altro utente)
-      operationId: deletePrivateChat
-      summary: Delete a Private Chat
-      description: Deletes the conversation for the authenticated user
-      tags:
-        - Private Chats
-      responses:
-        '204':
-          description: Conversation deleted successfully
-        '403':
-          description: User not part of this conversation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        '404':
-          description: Conversation not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
 
   ########################################
   # ENDPOINTS di Conversazioni di Gruppo.

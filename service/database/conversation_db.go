@@ -350,6 +350,7 @@ func (db *appdbimpl) CreateGroup(name string, desc string, photo string, creator
 	return Conversation{ID: groupID, ConversationType: "group", GroupName: &name}, nil
 }
 
+/*
 // DeletePrivateChatForUser "nasconde" la chat rimuovendo l'utente dai partecipanti.
 // SE però non rimangono più partecipanti (anche l'altro utente l'ha cancellata),
 // allora elimina definitivamente la conversazione e tutti i messaggi dal DB.
@@ -397,6 +398,7 @@ func (db *appdbimpl) DeletePrivateChatForUser(conversationID string, userID stri
 	// Confermo le modifiche
 	return tx.Commit()
 }
+*/
 
 // AddGroupMember aggiunge un utente a un gruppo esistente.
 func (db *appdbimpl) AddGroupMember(groupID string, userIDToAdd string) error {
@@ -410,8 +412,54 @@ func (db *appdbimpl) AddGroupMember(groupID string, userIDToAdd string) error {
 	return nil
 }
 
-// rimuove un membro dal gruppo.
+// Rimuove un membro dal gruppo o cancella il gruppo se è l'ultimo
 func (db *appdbimpl) RemoveGroupMember(groupID string, userIDToRemove string) error {
+	// Conto quanti membri ha il gruppo in totale
+	var memberCount int
+	err := db.c.QueryRow(`SELECT COUNT(*) FROM participants WHERE conversation_id = ?`, groupID).Scan(&memberCount)
+	if err != nil {
+		return err
+	}
+
+	// 1° Caso
+	// Se l'utente è l'ultimo rimasto (memberCount == 1)
+	// Devo eliminare l'intera conversazione.
+	if memberCount == 1 {
+		// Grazie al "ON DELETE CASCADE" che ho definito nello schema participants e messages,
+		// cancellando la conversazione si cancelleranno da soli i partecipanti e i messaggi.
+
+		_, err = db.c.Exec(`DELETE FROM conversations WHERE id = ?`, groupID)
+		return err
+	}
+
+	// 2° Caso
+	// Ci sono altri membri. Controllo se chi esce è Admin.
+	var isAdmin bool
+
+	err = db.c.QueryRow(`SELECT is_admin FROM participants WHERE conversation_id = ? AND user_id = ?`, groupID, userIDToRemove).Scan(&isAdmin)
+	if err != nil {
+		return ErrUserNotMember // Utente non trovato nel gruppo
+	}
+
+	// Se l'utente è Admin, controllo se ci sono ALTRI admin
+	if isAdmin {
+		var otherAdminsCount int
+		err = db.c.QueryRow(`
+			SELECT COUNT(*) FROM participants 
+			WHERE conversation_id = ? AND is_admin = 1 AND user_id != ?`, groupID, userIDToRemove).Scan(&otherAdminsCount)
+		if err != nil {
+			return err
+		}
+
+		// Se non ci sono altri admin, BLOCCO L'USCITA
+		if otherAdminsCount == 0 {
+			return ErrLastAdminCannotLeave
+		}
+	}
+
+	// 3° Caso
+	// Uscita Standard
+	// Elimino solo la riga del partecipante
 	res, err := db.c.Exec(`DELETE FROM participants WHERE conversation_id = ? AND user_id = ?`, groupID, userIDToRemove)
 	if err != nil {
 		return err
@@ -422,12 +470,13 @@ func (db *appdbimpl) RemoveGroupMember(groupID string, userIDToRemove string) er
 		return err
 	}
 	if rows == 0 {
-		return ErrUserNotMember // L'utente non era nel gruppo
+		return ErrUserNotMember
 	}
+
 	return nil
 }
 
-// promuove o retrocede un utente (isAdmin = true/false).
+// Promuove o Retrocede un utente (isAdmin = true/false).
 func (db *appdbimpl) ToggleAdminStatus(groupID string, userID string, isAdmin bool) error {
 	res, err := db.c.Exec(`UPDATE participants SET is_admin = ? WHERE conversation_id = ? AND user_id = ?`, isAdmin, groupID, userID)
 	if err != nil {
