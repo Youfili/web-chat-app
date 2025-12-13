@@ -53,8 +53,15 @@ export default {
 
             // Variabile Emoji
             showEmojiPicker: false,     // Variabile per Mostrare/Nascondere le Emoji
-            // Lista di Emoji
-            emojiList: emojiListSet
+            emojiList: emojiListSet,     // Lista di Emoji
+
+            // Variabili Modifica Messaggio
+            editingMessageId: null,      // ID del messaggio in modifica (null se nessuno)
+            originalMessageText: "",     // Testo originale per backup
+
+            // Variabili Inolto Messaggio
+            showForwardModal: false,    // Mostra/Nasconde il modale
+            messageToForward: null,     // L'oggetto messaggio che sto inoltrando
         }
     },
 
@@ -63,6 +70,10 @@ export default {
         // Restituisce l'oggetto della chat attualmente selezionata
         activeChat() {
             return this.conversations.find(c => c.id === this.selectedChatId)
+        },
+        // Computed property per pulizia codice
+        isEditing() {
+            return this.editingMessageId !== null
         }
     },
 
@@ -112,6 +123,9 @@ export default {
         },
 
 
+        // -------------
+        //## MESSAGGI
+        // ------------
         async selectChat(chatId) {
             this.showEmojiPicker = false // Chiudo Emoji Panel se aperto
             this.selectedChatId = chatId    // Aggiorno ID chat selezionata
@@ -198,6 +212,87 @@ export default {
         },
 
         
+        // Inizia la modifica di un messaggio
+        startEditing(msg) {
+            this.editingMessageId = msg.id;
+            this.originalMessageText = this.newMessageText; // Salva bozza corrente se c'è
+            this.newMessageText = msg.contentMess; // Mette il testo vecchio nell'input (cosi lo modifico)
+            
+            // Focus sull'input
+            this.$nextTick(() => {
+                if (this.$refs.messageInput) this.$refs.messageInput.focus();
+            });
+        },
+
+        // Annulla la modifica
+        cancelEditing() {
+            this.editingMessageId = null;
+            this.newMessageText = ""; // Pulisce l'input 
+        },
+
+        // Elimina messaggio
+        async doDeleteMessage(msgId) {
+            if (!confirm("Are you sure you want to delete this message?")) return;
+            try {
+                await api.deleteMessage(this.username, this.selectedChatId, msgId);
+                
+                // Rimuove messaggio dalla lista locale (senza ricaricare tutto)
+                this.messages = this.messages.filter(m => m.id !== msgId);
+                
+                // Se stavo modificando proprio questo messaggio, esco dall'edit
+                if (this.editingMessageId === msgId) this.cancelEditing();
+                
+            } catch (e) {
+                alert("Error deleting: " + e.toString());
+            }
+        },
+
+
+        // Apre il modale di inoltro
+        openForwardModal(msg) {
+            this.messageToForward = msg;
+            this.showForwardModal = true;
+        },
+
+        // Esegue l'inoltro di un messaggio verso una chat specifica
+        async doForwardToChat(targetChat) {
+            if (!this.messageToForward) return;
+
+            // Chiedo conferma per evitare click accidentali
+            if(!confirm(`Forward this message to ${this.getChatName(targetChat)}?`)) return;
+
+            try {
+                // Costruisco il payload JSON secondo lo struct go che ho definito in service/database/struct.go
+                const payload = { 
+                    targetConversationId: targetChat.id 
+                };
+
+                // Chiamo l'API
+                await api.forwardMessage(
+                    this.username, 
+                    this.selectedChatId, // ID della chat DA CUI inoltro
+                    this.messageToForward.id, // ID del messaggio
+                    payload
+                );
+
+                // Chiudo e resetto
+                this.showForwardModal = false;
+                this.messageToForward = null;
+
+                alert(`Message forwarded to ${this.getChatName(targetChat)}!`);
+                
+                // Se ho inoltrato alla chat STESSA in cui mi trovo, faccio un refresh per vedere il nuovo messaggio
+                if (targetChat.id === this.selectedChatId) {
+                    await this.refreshChat();
+                    this.scrollToBottom();
+                }
+
+            } catch (e) {
+                alert("Errore durante l'inoltro: " + e.toString());
+            }
+        },
+
+
         // Invia un nuovo messaggio
         async sendMsg() {
             // Evito invii vuoti o se nessuna chat è selezionata
@@ -207,17 +302,41 @@ export default {
 
                 this.showEmojiPicker = false // Chiudo le emoji quando invio
 
-                // Chiamata API
-                const response = await api.sendMessage(this.username, this.selectedChatId, this.newMessageText)
+                if (this.isEditing){
 
-                // Nel backend ho implementato getMessages che restitusce i messsaggi in DESC (dal più nuovo).
-                // Nel selectChat li ho girati (.reverse()). Quindi ora sono [Vecchio, ..., Nuovo].
-                // Quindi devo fare PUSH per aggiungere in fondo.
-                this.messages.push(response) 
+                    // Logica Editing Messaggio
+                    const updatedMsg = await api.editMessage(
+                        this.username,
+                        this.selectedChatId,
+                        this.editingMessageId,
+                        this.newMessageText
+                    );
 
-                // Pulisco l'input e scrollo in basso
-                this.newMessageText = ""
-                this.scrollToBottom() 
+                    // Aggiorno il messaggio nella lista locale
+                    const index = this.messages.findIndex(m => m.id === this.editingMessageId);
+                    if (index !== -1) {
+                        this.messages[index] = updatedMsg; 
+                    }
+                    
+                    // Esco dalla modalità edit
+                    this.cancelEditing();
+
+                } else {
+                    
+                    // Logica Invio Normale
+                    // Chiamata API
+                    const response = await api.sendMessage(this.username, this.selectedChatId, this.newMessageText)
+
+                    // Nel backend ho implementato getMessages che restitusce i messsaggi in DESC (dal più nuovo).
+                    // Nel selectChat li ho girati (.reverse()). Quindi ora sono [Vecchio, ..., Nuovo].
+                    // Quindi devo fare PUSH per aggiungere in fondo.
+                    this.messages.push(response) 
+
+                    // Pulisco l'input e scrollo in basso
+                    this.newMessageText = ""
+                    this.scrollToBottom() 
+
+                }
 
             } catch (e) {
                 this.errorMsg = "Error sending message: " + e.toString()
@@ -799,50 +918,81 @@ export default {
                             Loading messages...
                         </div>
 
-                        <!-- Se senderUsername del messaggio è uguale al "Mio" username, allora viene messo a destra.-->
+                        <!-- LISTA DEI MESSAGGI -->
                         <div v-else v-for="msg in messages" :key="msg.id" class="mb-3 d-flex"
-                             :class="msg.senderUsername === username ? 'justify-content-end' : 'justify-content-start'">
+                            :class="msg.senderUsername === username ? 'justify-content-end' : 'justify-content-start'">
                             
-                            <div class="card shadow-sm border-0" 
-                                 :class="msg.senderUsername === username ? 'bg-success text-white' : 'bg-white text-dark'"
-                                 style="max-width: 70%; min-width: 150px;">
+                            <div class="card shadow-sm border-0 position-relative message-card" 
+                                :class="msg.senderUsername === username ? 'bg-success text-white' : 'bg-white text-dark'"
+                                style="max-width: 70%; min-width: 150px;">
                                 
                                 <div class="card-body p-2">
+
+                                    <div v-if="msg.isForwarded || msg.forwarded" 
+                                        class="fst-italic mb-1 d-flex align-items-center" 
+                                        :class="msg.senderUsername === username ? 'text-white-50' : 'text-muted'"
+                                        style="font-size: 0.75rem;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-1"><polyline points="15 14 20 9 15 4"></polyline><path d="M4 20v-7a4 4 0 0 1 4-4h12"></path></svg>
+                                        Forwarded
+                                    </div>
+                                    
                                     <small v-if="msg.senderUsername !== username" class="fw-bold d-block mb-1 text-primary">
                                         {{ msg.senderUsername }}
-                                        
-                                        <span 
-                                            v-if="currentChatAdmins.includes(msg.senderUserId)" 
-                                            class="badge bg-light text-secondary border ms-2" 
-                                            style="font-size: 0.7em; vertical-align: middle;"
-                                        >
-                                            Admin
-                                        </span>
+                                        <span v-if="currentChatAdmins.includes(msg.senderUserId)" class="badge bg-light text-secondary border ms-2">Admin</span>
                                     </small>
 
                                     <div v-if="isImage(msg.contentMess)">
-                                        <img 
-                                            :src="msg.contentMess" 
-                                            class="img-fluid rounded mb-1" 
-                                            style="max-height: 300px; cursor: pointer;"
-                                            alt="Chat Image"
-                                        >
+                                        <img :src="msg.contentMess" class="img-fluid rounded mb-1" style="max-height: 300px; cursor: pointer;">
                                     </div>
-
-                                    <p v-else class="mb-1 text-break" style="white-space: pre-wrap;">{{ msg.contentMess }}</p>
+                                    <p v-else class="mb-1 text-break" style="white-space: pre-line;">{{ msg.contentMess }}</p>
                                     
                                     <div class="text-end lh-1" style="font-size: 0.7rem; opacity: 0.8;">
                                         {{ formatDateTime(msg.timestamp) }}
-                                        
                                         <span v-if="msg.senderUsername === username" class="ms-1">
-                                            <span v-if="msg.statusInfo === 'read'" class="text-primary fw-bold" style="font-size: 0.8rem;">✓✓</span>
+                                            <span v-if="msg.statusInfo === 'read'" class="fw-bold">✓✓</span>
                                             <span v-else>✓</span>
                                         </span>
                                     </div>
                                 </div>
+
+                                <div class="message-actions">
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-link p-0" 
+                                                :class="msg.senderUsername === username ? 'text-white' : 'text-secondary'"
+                                                type="button" data-bs-toggle="dropdown" aria-expanded="false" style="opacity: 0.9;">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-more-vertical"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+                                        </button>
+                                        
+                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
+                                            
+                                            <li v-if="msg.senderUsername === username">
+                                                <button class="dropdown-item d-flex align-items-center gap-2" @click="startEditing(msg)">
+                                                    <i class="feather icon-edit-2 text-primary"></i> Edit
+                                                </button>
+                                            </li>
+                                            <li v-if="msg.senderUsername === username">
+                                                <button class="dropdown-item d-flex align-items-center gap-2 text-danger" @click="doDeleteMessage(msg.id)">
+                                                    <i class="feather icon-trash-2"></i> Delete
+                                                </button>
+                                            </li>
+                                            
+                                            <li v-if="msg.senderUsername === username"><hr class="dropdown-divider"></li>
+                                            
+                                            <li>
+                                                <button class="dropdown-item d-flex align-items-center gap-2" @click="openForwardModal(msg)">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
+                                                    Forward
+                                                </button>
+                                            </li>
+
+                                        </ul>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
 
+                        
                         <div v-if="!chatLoading && messages.length === 0" class="text-center text-muted mt-5">
                             <p>No messages yet. Say hello! 👋</p>
                         </div>
@@ -851,6 +1001,17 @@ export default {
 
                     <!-- Barra Bottom della Chat, quella dove inserire il testo, emoji, immagine -->                    
                     <div class="p-3 bg-light border-top d-flex gap-2 align-items-center position-relative">
+
+                        <div v-if="isEditing" class="editing-banner shadow-sm d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="feather icon-edit text-primary"></i>
+                                <div class="d-flex flex-column lh-1">
+                                    <span class="fw-bold text-primary small">Editing Message</span>
+                                    <span class="text-muted small text-truncate" style="max-width: 200px;">{{ originalMessageText }}</span>
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-close" @click="cancelEditing"></button>
+                        </div>
 
                         <div v-if="showEmojiPicker" class="emoji-picker-popup shadow-sm">
                             <div class="emoji-grid">
@@ -886,7 +1047,8 @@ export default {
                         </button>
 
                         <input 
-                            ref="messageInput"   type="text" 
+                            ref="messageInput"   
+                            type="text" 
                             class="form-control" 
                             placeholder="Type a message..."
                             v-model="newMessageText"
@@ -894,8 +1056,9 @@ export default {
                         >
                         
                         <!-- Bottone per Inviare il Messaggio -->
-                        <button class="btn btn-primary" @click="sendMsg">
-                            Send
+                        <button class="btn" :class="isEditing ? 'btn-success' : 'btn-primary'" @click="sendMsg">
+                            <i v-if="isEditing" class="feather icon-check"></i>
+                            <span v-else>Send</span>
                         </button>
                     </div>
                 </div>
@@ -1045,7 +1208,52 @@ export default {
 
             </div>
         </div>
-        
+
+        <!-- Modale Forward Message -->
+        <div v-if="showForwardModal" class="modal-overlay" @click.self="showForwardModal = false">
+            <div class="modal-content shadow rounded bg-white" style="max-width: 400px; width: 90%; max-height: 80vh; display: flex; flex-direction: column;">
+                
+                <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-light">
+                    <h5 class="mb-0">Forward to...</h5>
+                    <button @click="showForwardModal = false" class="btn-close"></button>
+                </div>
+
+                <div class="flex-grow-1 overflow-auto">
+                    <div class="list-group list-group-flush">
+                        
+                        <button 
+                            v-for="chat in conversations" 
+                            :key="chat.id"
+                            @click="doForwardToChat(chat)"
+                            class="list-group-item list-group-item-action d-flex align-items-center p-3"
+                        >
+                            <img 
+                                :src="getChatPhoto(chat)" 
+                                class="rounded-circle me-3" 
+                                width="40" height="40"
+                                style="object-fit: cover;"
+                            >
+                            <div>
+                                <h6 class="mb-0">{{ getChatName(chat) }}</h6>
+                                <small class="text-muted" style="font-size: 0.75rem;">
+                                    {{ chat.conversationType === 'group' ? 'Group' : 'Private' }}
+                                </small>
+                            </div>
+                        </button>
+
+                        <div v-if="conversations.length === 0" class="p-4 text-center text-muted">
+                            No active chats found.
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="p-2 border-top text-center bg-light">
+                    <button class="btn btn-sm btn-secondary" @click="showForwardModal = false">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+
     </div>
 </template>
 
@@ -1163,4 +1371,62 @@ input.form-control,
 .list-group-item p {
     font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
 }
+
+/* EDITING MESSAGGIO */
+
+/* Modifica al contenitore della card */
+.message-card {
+    display: flex !important; /* Attiva le colonne (Flexbox) */
+    flex-direction: row;      /* Testo a sinistra, Icona a destra */
+    overflow: visible;        /* Importante per far uscire il menu a tendina */
+}
+
+/* Modifica al corpo del testo (.card-body) */
+.message-card .card-body {
+    flex: 1;       /* Prende tutto lo spazio disponibile meno i 30px dell'icona */
+    min-width: 0;  /* Fix tecnico per evitare che il testo rompa il layout flex */
+    
+    padding: 0.5rem !important; 
+}
+
+/* Modifica al contenitore dei puntini (.message-actions) */
+.message-card .message-actions {
+    position: relative; 
+    
+    width: 30px;        /* Larghezza fissa della colonna "tab" */
+    
+    /* Centratura dell'icona */
+    display: flex;      
+    justify-content: center;
+    padding-top: 8px;   /* Per allinearla visivamente alla prima riga di testo */
+    
+    opacity: 0.6;
+    transition: opacity 0.2s;
+    z-index: 10;
+    cursor: pointer;
+}
+
+/* Hover effect */
+.message-card:hover .message-actions {
+    opacity: 1;
+}
+
+/* Se il menu è aperto, resta visibile */
+.message-card .message-actions .dropdown.show {
+    opacity: 1;
+}
+
+/* Stile Banner Modifica */
+.editing-banner {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    width: 100%;
+    background-color: #f0f2f5;
+    border-top: 1px solid #ddd;
+    padding: 8px 15px;
+    z-index: 5;
+    border-radius: 10px 10px 0 0;
+}
+
 </style>

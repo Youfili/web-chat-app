@@ -210,22 +210,24 @@ export default {
 		await axios.delete(`/wasatext/${username}/conversations/${conversationId}/messages/${messageId}`);
 	},
 
-	// Smart Forwarding
-	// targetType: 'conversation' (uuid chat) oppure 'user' (uuid utente)
-	async forwardMessage(username, currentConvId, messageId, targetType, targetId) {
-		const payload = {};
-		if (targetType === 'conversation') {
-			payload.targetConversationId = targetId;
-		} else {
-			payload.targetUserId = targetId;
-		}
+	// Funzione per modificare un messaggio
+    async editMessage(username, conversationId, messageId, newContent) {
+        // La chiave "contentMess" corrisponde alla struct Go: type MessageUpdate struct { ContentMess string `json:"contentMess"` }
+        const response = await axios.patch(
+            `/wasatext/${username}/conversations/${conversationId}/messages/${messageId}`,
+            { contentMess: newContent } 
+        );
+        return response.data;
+    },
 
-		const response = await axios.post(
-			`/wasatext/${username}/conversations/${currentConvId}/messages/${messageId}/forward`,
-			payload
-		);
-		return response.data;
-	},
+	// Funzione per inoltrare un messaggio
+    async forwardMessage(username, currentConversationId, messageId, targetDict) {
+        // targetDict sarà un oggetto tipo: { targetConversationId: "..." } oppure { targetUserId: "..." }
+        return axios.post(
+            `/wasatext/${username}/conversations/${currentConversationId}/messages/${messageId}/forward`,
+            targetDict
+        );
+    },
 
 	// =================================================================
 	// REACTIONS & READ STATUS
