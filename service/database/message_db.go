@@ -97,9 +97,12 @@ func (db *appdbimpl) GetMessages(conversationID string, limit int, before time.T
 		var m Message
 		err := rows.Scan(&m.ID, &m.ContentMess, &m.Timestamp, &m.Forwarded, &m.SenderUserID, &m.SenderUsername)
 		if err != nil {
+			defer func() { _ = rows.Close() }()
 			return nil, err
 		}
 		m.ConversationID = conversationID
+
+		// ----------------------------------------------------------------
 
 		// Logica Spunta Blu
 		m.StatusInfo = "delivered" // Default
@@ -110,6 +113,22 @@ func (db *appdbimpl) GetMessages(conversationID string, limit int, before time.T
 		}
 
 		msgs = append(msgs, m)
+	}
+
+	defer func() { _ = rows.Close() }() // Chiudo la connessione della query principale
+
+	// ----------------------------------------------------------------------
+	// Popolo le Reazioni per questo messaggio
+	// Chiamo la funzione GetReactions che ho implementato in reaction_db.go
+	// ------------------------------------------------------------------------
+	for i := range msgs {
+		// Uso l'indice per modificare direttamente l'elemento nell'array
+		reactions, err := db.GetReactions(msgs[i].ID)
+		if err != nil {
+			msgs[i].Reactions = []Reaction{}
+		} else {
+			msgs[i].Reactions = reactions
+		}
 	}
 
 	if err := rows.Err(); err != nil {
@@ -146,6 +165,16 @@ func (db *appdbimpl) GetMessageByID(messageID string) (Message, error) {
 	if err != nil {
 		return Message{}, err
 	}
+
+	// -------------------------------------
+	// Popolo le reazioni
+	reactions, err := db.GetReactions(m.ID)
+	if err != nil {
+		m.Reactions = []Reaction{}
+	} else {
+		m.Reactions = reactions
+	}
+	// --------------------------------------
 
 	return m, nil
 }

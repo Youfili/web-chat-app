@@ -38,78 +38,101 @@ func createTableParticipants(db *sql.DB) error {
 
 // GetConversations: Logica ibrida
 func (db *appdbimpl) GetConversations(userID string) ([]Conversation, error) {
+	// FASE 1: Scarico TUTTE le conversazioni base in memoria
+	// Chiuderò la connessione PRIMA di fare le query di dettaglio.
 	query := `
-		SELECT c.id, c.type, c.group_name, c.group_photo, c.group_description, c.last_message_at, p.last_read_message_id
-		FROM conversations c
-		JOIN participants p ON c.id = p.conversation_id
-		WHERE p.user_id = ?
-		ORDER BY c.last_message_at DESC
-	`
+        SELECT c.id, c.type, c.group_name, c.group_photo, c.group_description, c.last_message_at, p.last_read_message_id
+        FROM conversations c
+        JOIN participants p ON c.id = p.conversation_id
+        WHERE p.user_id = ?
+        ORDER BY c.last_message_at DESC
+    `
 	rows, err := db.c.Query(query, userID)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
 
-	var conversations []Conversation
+	// Struttura temporanea per salvare i dati grezzi dal DB --> Serve perché Conversation ha campi calcolati che popolerò dopo
+	type rawConv struct {
+		C          Conversation
+		GName      sql.NullString
+		GPhoto     sql.NullString
+		GDesc      sql.NullString
+		LastReadId sql.NullString
+		LastMsgAt  sql.NullTime
+	}
+
+	var rawList []rawConv
 
 	for rows.Next() {
-		var c Conversation
-		var gName, gPhoto, gDesc, lastReadId sql.NullString
-		var lastMsgAt sql.NullTime
-
-		err := rows.Scan(&c.ID, &c.ConversationType, &gName, &gPhoto, &gDesc, &lastMsgAt, &lastReadId)
+		var item rawConv
+		err := rows.Scan(
+			&item.C.ID,
+			&item.C.ConversationType,
+			&item.GName,
+			&item.GPhoto,
+			&item.GDesc,
+			&item.LastMsgAt,
+			&item.LastReadId,
+		)
 		if err != nil {
+			rows.Close()
 			return nil, err
 		}
+		rawList = append(rawList, item)
+	}
+	// Chiudo la Connessione Principale Qui! --> Mi dava problemi di Deadlock
+	defer func() { _ = rows.Close() }()
 
-		if lastMsgAt.Valid {
-			c.DtLastMessage = lastMsgAt.Time
+	// FASE 2: Arricchisco i dati (Snippet, Unread, Private User Info)
+	// Ora posso fare quante query voglio senza bloccare nulla.
+
+	var finalConversations []Conversation
+
+	for _, item := range rawList {
+		c := item.C // Copio la struct base
+
+		// Gestione Date
+		if item.LastMsgAt.Valid {
+			c.DtLastMessage = item.LastMsgAt.Time
 		} else {
 			c.DtLastMessage = time.Now()
 		}
 
-		// Calcolo Unread Count ESCLUDENDO i messaggi inviati da me stesso (sender_id != userID)
-		// Mi dava problemi di visualizzazione nel frontend --> mi mostrava le notifiche "non letto" ai messaggi inviati da me (con me intendo sempre utente loggato in sessione)
-		if lastReadId.Valid && lastReadId.String != "" {
-			// 1° Caso: Ho già letto qualcosa in passato.
-			// Conto i messaggi che sono NUOVI (> last_read) E che NON sono miei (!= userID)
+		// Unread Count
+		if item.LastReadId.Valid && item.LastReadId.String != "" {
 			countQuery := `
-				SELECT COUNT(*) 
-				FROM messages 
-				WHERE conversation_id = ? 
-				AND created_at > (SELECT created_at FROM messages WHERE id = ?)
-				AND sender_id != ? 
-			`
-			_ = db.c.QueryRow(countQuery, c.ID, lastReadId.String, userID).Scan(&c.UnreadCount)
+                SELECT COUNT(*) 
+                FROM messages 
+                WHERE conversation_id = ? 
+                AND created_at > (SELECT created_at FROM messages WHERE id = ?)
+                AND sender_id != ? 
+            `
+			_ = db.c.QueryRow(countQuery, c.ID, item.LastReadId.String, userID).Scan(&c.UnreadCount)
 		} else {
-			// 2° Caso: Non ho mai letto nulla (chat nuova o cursore vuoto).
-			// Conto TUTTI i messaggi della chat che NON sono miei.
 			_ = db.c.QueryRow(`SELECT COUNT(*) FROM messages WHERE conversation_id = ? AND sender_id != ?`, c.ID, userID).Scan(&c.UnreadCount)
 		}
 
-		// --------------------------------------------
-
-		// Recupero snippet
+		// Snippet
 		_ = db.c.QueryRow(`SELECT content FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 1`, c.ID).Scan(&c.Snippet)
 
+		// Dettagli Specifici (Gruppo o Privata)
 		switch c.ConversationType {
 		case "group":
-			if gName.Valid {
-				v := gName.String
+			if item.GName.Valid {
+				v := item.GName.String
 				c.GroupName = &v
 			}
-			if gPhoto.Valid {
-				v := gPhoto.String
+			if item.GPhoto.Valid {
+				v := item.GPhoto.String
 				c.GroupPhoto = &v
 			}
-			if gDesc.Valid {
-				v := gDesc.String
+			if item.GDesc.Valid {
+				v := item.GDesc.String
 				c.GroupDescription = &v
 			}
 
 		case "private":
-			// Trovo l'altro utente
 			var otherName, otherPhoto, otherID string
 			err := db.c.QueryRow(`
                 SELECT u.username, u.profile_photo, u.id
@@ -124,14 +147,10 @@ func (db *appdbimpl) GetConversations(userID string) ([]Conversation, error) {
 			}
 		}
 
-		conversations = append(conversations, c)
+		finalConversations = append(finalConversations, c)
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return conversations, nil
+	return finalConversations, nil
 }
 
 func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID string) (Conversation, error) {

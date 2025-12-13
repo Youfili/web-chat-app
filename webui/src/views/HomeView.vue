@@ -62,6 +62,9 @@ export default {
             // Variabili Inolto Messaggio
             showForwardModal: false,    // Mostra/Nasconde il modale
             messageToForward: null,     // L'oggetto messaggio che sto inoltrando
+
+            // Variabili Reaction
+            reactionOptions: ["👍", "❤️", "😂", "😮", "😢", "😡"],  // Emoji da usare per le Reaction
         }
     },
 
@@ -160,7 +163,7 @@ export default {
                 
 
             } catch (e) {
-                // GESTIONE CANCELLAZIONE
+                // Gestione Cancellazione
                 if (e.isCanceled) {
                     console.log("Richiesta messaggi annullata (utente ha cambiato chat)")
                     return; 
@@ -289,6 +292,46 @@ export default {
 
             } catch (e) {
                 alert("Errore durante l'inoltro: " + e.toString());
+            }
+        },
+
+        // Reactions
+        // Gestisce il click su una reaction (Rimozione / Sostituzione)
+        async reactToMessage(msg, emoji) {
+            // Se msg.reactions è null/undefined lo inizializzo
+            if (!msg.reactions) msg.reactions = [];
+
+            // Cerco se ho già messo una reaction a questo messaggio
+            const myExistingReaction = msg.reactions.find(r => r.senderUserId === this.myProfile.id);
+
+            try {
+                // CASO 1: Ho già una reazione
+                if (myExistingReaction) {
+                    
+                    // Se clicco la STESSA emoji -> La Rimuovo 
+                    if (myExistingReaction.emoji === emoji) {
+                        await api.removeReaction(this.username, this.selectedChatId, msg.id);
+                        // Aggiorno UI locale
+                        msg.reactions = msg.reactions.filter(r => r.senderUserId !== this.myProfile.id);
+                        return;
+                    } 
+                    
+                    // (Sostituzione) Se clicco un'emoji DIVERSA -> Rimuovo vecchia e metto nuova 
+                    await api.removeReaction(this.username, this.selectedChatId, msg.id);
+                }
+
+                // CASO 2: Aggiungo la nuova reazione (o quella sostituita)
+                const newReaction = await api.addReaction(this.username, this.selectedChatId, msg.id, emoji);
+                
+                // Aggiorno UI locale:
+                // Pulisco eventuali mie reazioni vecchie (per sicurezza UI)
+                msg.reactions = msg.reactions.filter(r => r.senderUserId !== this.myProfile.id);
+                // Aggiungo la nuova
+                msg.reactions.push(newReaction);
+
+            } catch (e) {
+                console.error("Errore reazione:", e);
+                alert("Impossibile reagire al messaggio.");
             }
         },
 
@@ -731,7 +774,25 @@ export default {
         logout() {
             localStorage.clear()
             this.$router.push('/login')
-        }
+        },
+
+        // Funzione che chiude il picker se clicco fuori
+        handleClickOutside(event) {
+            // Se il picker è già chiuso, non faccio nulla
+            if (!this.showEmojiPicker) return;
+
+            // Recupero i riferimenti agli elementi HTML (che ho messo con ref="...")
+            const picker = this.$refs.emojiPicker;
+            const btn = this.$refs.emojiBtn;
+
+            // Controllo
+            // 1. Esiste il picker?
+            // 2. Il click NON è avvenuto dentro il picker?
+            // 3. Il click NON è avvenuto sul bottone che apre il picker?
+            if (picker && !picker.contains(event.target) && btn && !btn.contains(event.target)) {
+                this.showEmojiPicker = false;   // Chiudo la griglia delle Emojii
+            }
+        },
 
     },
 
@@ -748,13 +809,21 @@ export default {
             this.refreshConversations() // Aggiorna la lista a sinistra
             this.refreshChat()          // Aggiorna la chat a destra (se aperta)
         }, 3000)
+        
+        // Aggiungo l'ascoltatore per i click su tutta la pagina
+        document.addEventListener('click', this.handleClickOutside);
+        
     },
 
     // UNMOUNTED: Pulizia quando chiudo la pagina 
-    unmounted() {
+    beforeUnmount() {
+        // Pulisco l'intervallo
         if (this.pollingInterval) {
             clearInterval(this.pollingInterval)
         }
+
+        // Rimuovo l'ascoltatore per il clikc
+        document.removeEventListener('click', this.handleClickOutside);
     }
 }
 </script>
@@ -927,11 +996,8 @@ export default {
                                 style="max-width: 70%; min-width: 150px;">
                                 
                                 <div class="card-body p-2">
-
-                                    <div v-if="msg.isForwarded || msg.forwarded" 
-                                        class="fst-italic mb-1 d-flex align-items-center" 
-                                        :class="msg.senderUsername === username ? 'text-white-50' : 'text-muted'"
-                                        style="font-size: 0.75rem;">
+                                    <div v-if="msg.isForwarded || msg.forwarded" class="fst-italic mb-1 d-flex align-items-center" 
+                                        :class="msg.senderUsername === username ? 'text-white-50' : 'text-muted'" style="font-size: 0.75rem;">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-1"><polyline points="15 14 20 9 15 4"></polyline><path d="M4 20v-7a4 4 0 0 1 4-4h12"></path></svg>
                                         Forwarded
                                     </div>
@@ -946,6 +1012,21 @@ export default {
                                     </div>
                                     <p v-else class="mb-1 text-break" style="white-space: pre-line;">{{ msg.contentMess }}</p>
                                     
+
+                                    <div v-if="msg.reactions && msg.reactions.length > 0" class="d-flex flex-wrap gap-1 mt-2 mb-1">
+                                        <span 
+                                            v-for="reaction in msg.reactions" 
+                                            :key="reaction.reactionId" 
+                                            class="badge rounded-pill border reaction-pill d-flex align-items-center"
+                                            :class="reaction.senderUserId === myProfile.id ? 'bg-primary-subtle text-primary border-primary' : 'bg-light text-dark border-secondary-subtle'"
+                                            @click="reactToMessage(msg, reaction.emoji)"
+                                            :title="reaction.senderUsername"
+                                        >
+                                            {{ reaction.emoji }}
+                                        </span>
+                                    </div>
+
+
                                     <div class="text-end lh-1" style="font-size: 0.7rem; opacity: 0.8;">
                                         {{ formatDateTime(msg.timestamp) }}
                                         <span v-if="msg.senderUsername === username" class="ms-1">
@@ -963,7 +1044,20 @@ export default {
                                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-more-vertical"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
                                         </button>
                                         
-                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
+                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0" style="min-width: 200px;">
+                                            
+                                            <li>
+                                                <div class="d-flex justify-content-evenly p-2 bg-light rounded mx-2 mb-2">
+                                                    <button 
+                                                        v-for="emoji in reactionOptions" 
+                                                        :key="emoji"
+                                                        class="btn btn-sm p-0 fs-5 lh-1 reaction-menu-btn"
+                                                        @click="reactToMessage(msg, emoji)"
+                                                    >
+                                                        {{ emoji }}
+                                                    </button>
+                                                </div>
+                                            </li>
                                             
                                             <li v-if="msg.senderUsername === username">
                                                 <button class="dropdown-item d-flex align-items-center gap-2" @click="startEditing(msg)">
@@ -1013,7 +1107,7 @@ export default {
                             <button class="btn btn-sm btn-close" @click="cancelEditing"></button>
                         </div>
 
-                        <div v-if="showEmojiPicker" class="emoji-picker-popup shadow-sm">
+                        <div v-if="showEmojiPicker" ref="emojiPicker" class="emoji-picker-popup shadow-sm">
                             <div class="emoji-grid">
                                 <button 
                                     v-for="emoji in emojiList" 
@@ -1037,7 +1131,7 @@ export default {
                         >
 
                         <!-- Bottone per inserire Emoji -->
-                        <button class="btn btn-outline-secondary border-0" @click="showEmojiPicker = !showEmojiPicker">
+                        <button class="btn btn-outline-secondary border-0" ref="emojiBtn" @click="showEmojiPicker = !showEmojiPicker">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-smile"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
                         </button>
 
@@ -1427,6 +1521,49 @@ input.form-control,
     padding: 8px 15px;
     z-index: 5;
     border-radius: 10px 10px 0 0;
+}
+
+/* Stile REACTIONS */
+.reaction-pill {
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: normal;
+    padding: 4px 8px;
+    transition: transform 0.1s;
+    user-select: none;
+    
+    /* Fix Font Emoji*/
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+
+    line-height: 1.3; 
+}
+
+.reaction-pill:active {
+    transform: scale(0.95);
+}
+
+/* Colore Mia reazione */
+.bg-primary-subtle {
+    background-color: #e7f1ff !important;
+}
+
+/* Bordo Colore Reazioni degli altri */
+.border-secondary-subtle {
+    border-color: #dee2e6 !important;
+}
+
+/* Stile per le emoji dentro il menu a tendina */
+.reaction-menu-btn {
+    border: none;
+    background: transparent;
+    transition: transform 0.2s;
+    
+    /* Fix Font Emoji*/
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+}
+
+.reaction-menu-btn:hover {
+    transform: scale(1.4); /* Effetto zoom al passaggio del mouse */
 }
 
 </style>

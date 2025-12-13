@@ -167,12 +167,12 @@ export default {
 	// =================================================================
 
 	async getChatMessages(username, conversationId, limit = 50, beforeTimestamp = null) {
-		// 1. Se st0 caricando una NUOVA chat (non paginazione), annulla richieste precedenti
+		//  Se st0 caricando una NUOVA chat, annulla richieste precedenti	--> (Annulla richieste vecchie se cambio chat veloce)
 		if (!beforeTimestamp && messagesAbortController) {
 			messagesAbortController.abort();
 		}
 
-		// 2. Crea nuovo controller se non esiste o se è stato abortito
+		// Crea nuovo controller se non esiste o se è stato abortito
 		if (!beforeTimestamp || !messagesAbortController) {
 			messagesAbortController = new AbortController();
 		}
@@ -190,11 +190,10 @@ export default {
 			);
 			return response.data;
 		} catch (error) {
-			if (axios.isCancel(error)) {
-				// Errore intenzionale (cambio chat), lo lancio in modo che la UI possa ignorarlo
-				throw { isCanceled: true };
-			}
-			throw error;
+			if (error.code === "ERR_CANCELED" || error.name === "CanceledError") {
+                throw { isCanceled: true };
+            }
+            throw error;
 		}
 	},
 
@@ -234,18 +233,25 @@ export default {
 	// =================================================================
 
 	async addReaction(username, conversationId, messageId, emoji) {
-		const response = await axios.post(
-			`/wasatext/${username}/conversations/${conversationId}/messages/${messageId}/reactions`,
-			{ emoji: emoji }
-		);
-		return response.data;
-	},
+        const response = await axios.post(
+            `/wasatext/${username}/conversations/${conversationId}/messages/${messageId}/reactions`,
+            { emoji: emoji }
+        );
+        return response.data;
+    },
 
-	async removeReaction(username, conversationId, messageId) {
-		await axios.delete(
-			`/wasatext/${username}/conversations/${conversationId}/messages/${messageId}/reactions`
-		);
-	},
+    async removeReaction(username, conversationId, messageId) {
+        await axios.delete(
+            `/wasatext/${username}/conversations/${conversationId}/messages/${messageId}/reactions`
+        );
+    },
+
+    async getMessageReactions(username, conversationId, messageId) {
+        const response = await axios.get(
+            `/wasatext/${username}/conversations/${conversationId}/messages/${messageId}/reactions`
+        );
+        return response.data; // Torna { reactions: [...] }
+    },
 
 	async markAsRead(username, conversationId, lastMessageId) {
 		await axios.put(
