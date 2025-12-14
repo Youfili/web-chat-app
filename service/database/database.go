@@ -142,7 +142,7 @@ type AppDatabase interface {
 	// GetMessages recupera la cronologia.
 	// 'before': timestamp per paginazione (messaggi più vecchi di...).
 	// 'limit': numero messaggi.
-	GetMessages(conversationID string, limit int, before time.Time) ([]Message, error)
+	GetMessages(username string, conversationID string, limit int, before time.Time) ([]Message, error)
 
 	// Return Message by ID
 	GetMessageByID(messageID string) (Message, error)

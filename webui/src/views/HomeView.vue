@@ -448,6 +448,7 @@ export default {
             if (!this.selectedChatId) return
 
             try {
+                // Scarico i messaggi aggiornati (che contengono statusInfo corretto)
                 // Nota: non resetto messages.value, confronto o sostituisco
                 let response = await api.getChatMessages(this.username, this.selectedChatId)
                 const newMessages = response.messages.reverse()
@@ -456,11 +457,11 @@ export default {
                 if (newMessages.length > this.messages.length) {
                     this.messages = newMessages
 
-                    this.markAsRead()        // Sono arrivati nuovi messaggi mentre guardavo la chat -> Li segno come letti
+                    await this.markAsRead()        // Sono arrivati nuovi messaggi mentre guardavo la chat -> Li segno come letti
 
                     this.scrollToBottom()    //Scrollo in fondo perché c'è un nuovo messaggio
                 }
-                // Se la lunghezza è uguale, aggiorno comunque per vedere le spunte blu o le reazioni
+                // Se la lunghezza è uguale, Nessun nuovo messaggio, ma forse è cambiato lo Stato (letto?)
                 else {
                     // Sovrascrivo la lista per aggiornare lo stato (delivered -> read)
                     this.messages = newMessages 
@@ -1030,8 +1031,11 @@ export default {
                                     <div class="text-end lh-1" style="font-size: 0.7rem; opacity: 0.8;">
                                         {{ formatDateTime(msg.timestamp) }}
                                         <span v-if="msg.senderUsername === username" class="ms-1">
-                                            <span v-if="msg.statusInfo === 'read'" class="fw-bold">✓✓</span>
+                                            
+                                            <span v-if="msg.statusInfo === 'read'" class="fw-bold" style="color: #4df0ff;">✓✓</span>
+                                            
                                             <span v-else>✓</span>
+
                                         </span>
                                     </div>
                                 </div>

@@ -103,7 +103,7 @@ func (rt *_router) getConversation(w http.ResponseWriter, r *http.Request, ps ht
 	}
 
 	// Query DB
-	messages, err := rt.db.GetMessages(conversationID, limit, before)
+	messages, err := rt.db.GetMessages(pathUsername, conversationID, limit, before)
 	if err != nil {
 		rt.baseLogger.Errorf("Error fetching messages: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

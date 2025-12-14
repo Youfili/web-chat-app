@@ -62,29 +62,61 @@ func (db *appdbimpl) CreateMessage(msg Message) (Message, error) {
 	return msg, nil
 }
 
-func (db *appdbimpl) GetMessages(conversationID string, limit int, before time.Time) ([]Message, error) {
+func (db *appdbimpl) GetMessages(username string, conversationID string, limit int, before time.Time) ([]Message, error) {
+
+	// Recupero il MIO ID utente (per escludermi dal conteggio letture)
+	user, err := db.GetUserByUsername(username)
+	if err != nil {
+		return nil, err
+	}
+
 	// Recupero il timestamp dell'ultimo messaggio letto DALL'ALTRO utente (o dagli altri nel caso di una conversazione di gruppo)
-	var otherLastReadTime sql.NullTime
+	var lastReadStr sql.NullString
 
 	// Questa query trova il timestamp del messaggio letto più "vecchio" tra gli altri partecipanti.
-	// Se gli altri hanno letto messaggi più recenti del mio, allora il mio è "read".
 	timeQuery := `
 		SELECT MAX(m.created_at)
-		FROM participants p
-		JOIN messages m ON p.last_read_message_id = m.id
-		WHERE p.conversation_id = ?
+        FROM participants p
+        JOIN messages m ON p.last_read_message_id = m.id
+        WHERE p.conversation_id = ? AND p.user_id != ?
 	`
 
-	// Prendo il MAX data di lettura di Qualsiasi partecipante nella chat.
-	_ = db.c.QueryRow(timeQuery, conversationID).Scan(&otherLastReadTime)
+	// Eseguo la query scansionando in una STRINGA
+	errQuery := db.c.QueryRow(timeQuery, conversationID, user.ID).Scan(&lastReadStr)
 
+	// Variabile dove salverò la data convertita
+	var otherLastReadTime time.Time
+	var hasValidReadTime bool // di default è false
+
+	if errQuery != nil {
+		// Se c'è un errore SQL
+	} else if lastReadStr.Valid {
+		// Ho trovato una Data --> Devo convertirla in time.Time.
+		// Faccio un Parsing
+
+		// Layout standard che usa Go nel DB
+		layout := "2006-01-02 15:04:05.999999999-07:00"
+		t, errParse := time.Parse(layout, lastReadStr.String)
+
+		if errParse != nil {
+			// Fallback
+			t, errParse = time.Parse("2006-01-02 15:04:05", lastReadStr.String)
+		}
+
+		if errParse == nil {
+			otherLastReadTime = t
+			hasValidReadTime = true
+		}
+	}
+
+	// Recupero i Messaggi
 	query := `
 		SELECT m.id, m.content, m.created_at, m.is_forwarded, m.sender_id, u.username
-		FROM messages m
-		JOIN users u ON m.sender_id = u.id
-		WHERE m.conversation_id = ? AND m.created_at < ?
-		ORDER BY m.created_at DESC
-		LIMIT ?
+        FROM messages m
+        JOIN users u ON m.sender_id = u.id
+        WHERE m.conversation_id = ? AND m.created_at < ?
+        ORDER BY m.created_at DESC
+        LIMIT ?
 	`
 	rows, err := db.c.Query(query, conversationID, before, limit)
 	if err != nil {
@@ -93,6 +125,7 @@ func (db *appdbimpl) GetMessages(conversationID string, limit int, before time.T
 	defer func() { _ = rows.Close() }()
 
 	var msgs []Message
+
 	for rows.Next() {
 		var m Message
 		err := rows.Scan(&m.ID, &m.ContentMess, &m.Timestamp, &m.Forwarded, &m.SenderUserID, &m.SenderUsername)
@@ -104,12 +137,15 @@ func (db *appdbimpl) GetMessages(conversationID string, limit int, before time.T
 
 		// ----------------------------------------------------------------
 
-		// Logica Spunta Blu
+		// Logica Assegnazione Stato
 		m.StatusInfo = "delivered" // Default
 
-		// Se c'è qualcuno che ha letto un messaggio creato DOPO o UGUALE a questo:
-		if otherLastReadTime.Valid && !m.Timestamp.After(otherLastReadTime.Time) {
-			m.StatusInfo = "read"
+		// Se ho trovato e convertito validamente la data di lettura dell'altro...
+		if hasValidReadTime {
+			// --> confronto le date
+			if !m.Timestamp.After(otherLastReadTime) {
+				m.StatusInfo = "read"
+			}
 		}
 
 		msgs = append(msgs, m)

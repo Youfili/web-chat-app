@@ -76,7 +76,7 @@ func (db *appdbimpl) GetConversations(userID string) ([]Conversation, error) {
 			&item.LastReadId,
 		)
 		if err != nil {
-			rows.Close()
+			defer func() { _ = rows.Close() }()
 			return nil, err
 		}
 		rawList = append(rawList, item)
