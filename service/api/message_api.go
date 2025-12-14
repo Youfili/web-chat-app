@@ -46,17 +46,22 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
 	msg := database.Message{
 		ConversationID: conversationID,
 		SenderUserID:   requesterUser.ID,
+		SenderUsername: requesterUser.Username, // Popolo subito lo username, ho avuto problemi nel frontend nell'invio del messaggio
 		ContentMess:    req.ContentMess,
-		// Timestamp e ID vengono messi dal DB (vedere message-db.go)
+		// Timestamp e ID vengono messi dal DB (vedere message_db.go)
 		Forwarded: false,
 	}
 
+	// Salvataggio nel DB
 	createdMsg, err := rt.db.CreateMessage(msg)
 	if err != nil {
 		rt.baseLogger.Errorf("Error sending message: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+
+	// Mi assicuro che lo username ci sia nel ritorno (dopo aver avuto problemi con l'invio del messaggio)
+	createdMsg.SenderUsername = requesterUser.Username
 
 	// Ritorno il nuovo messaggio creato
 	w.WriteHeader(http.StatusCreated)
@@ -98,7 +103,7 @@ func (rt *_router) getConversation(w http.ResponseWriter, r *http.Request, ps ht
 	}
 
 	// Query DB
-	messages, err := rt.db.GetMessages(conversationID, limit, before)
+	messages, err := rt.db.GetMessages(pathUsername, conversationID, limit, before)
 	if err != nil {
 		rt.baseLogger.Errorf("Error fetching messages: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

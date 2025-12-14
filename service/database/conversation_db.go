@@ -38,57 +38,101 @@ func createTableParticipants(db *sql.DB) error {
 
 // GetConversations: Logica ibrida
 func (db *appdbimpl) GetConversations(userID string) ([]Conversation, error) {
+	// FASE 1: Scarico TUTTE le conversazioni base in memoria
+	// Chiuderò la connessione PRIMA di fare le query di dettaglio.
 	query := `
-		SELECT c.id, c.type, c.group_name, c.group_photo, c.group_description, c.last_message_at
-		FROM conversations c
-		JOIN participants p ON c.id = p.conversation_id
-		WHERE p.user_id = ?
-		ORDER BY c.last_message_at DESC
-	`
+        SELECT c.id, c.type, c.group_name, c.group_photo, c.group_description, c.last_message_at, p.last_read_message_id
+        FROM conversations c
+        JOIN participants p ON c.id = p.conversation_id
+        WHERE p.user_id = ?
+        ORDER BY c.last_message_at DESC
+    `
 	rows, err := db.c.Query(query, userID)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
 
-	var conversations []Conversation
+	// Struttura temporanea per salvare i dati grezzi dal DB --> Serve perché Conversation ha campi calcolati che popolerò dopo
+	type rawConv struct {
+		C          Conversation
+		GName      sql.NullString
+		GPhoto     sql.NullString
+		GDesc      sql.NullString
+		LastReadId sql.NullString
+		LastMsgAt  sql.NullTime
+	}
+
+	var rawList []rawConv
 
 	for rows.Next() {
-		var c Conversation
-		var gName, gPhoto, gDesc sql.NullString
-		var lastMsgAt sql.NullTime
-
-		err := rows.Scan(&c.ID, &c.ConversationType, &gName, &gPhoto, &gDesc, &lastMsgAt)
+		var item rawConv
+		err := rows.Scan(
+			&item.C.ID,
+			&item.C.ConversationType,
+			&item.GName,
+			&item.GPhoto,
+			&item.GDesc,
+			&item.LastMsgAt,
+			&item.LastReadId,
+		)
 		if err != nil {
+			defer func() { _ = rows.Close() }()
 			return nil, err
 		}
+		rawList = append(rawList, item)
+	}
+	// Chiudo la Connessione Principale Qui! --> Mi dava problemi di Deadlock
+	defer func() { _ = rows.Close() }()
 
-		if lastMsgAt.Valid {
-			c.DtLastMessage = lastMsgAt.Time
+	// FASE 2: Arricchisco i dati (Snippet, Unread, Private User Info)
+	// Ora posso fare quante query voglio senza bloccare nulla.
+
+	var finalConversations []Conversation
+
+	for _, item := range rawList {
+		c := item.C // Copio la struct base
+
+		// Gestione Date
+		if item.LastMsgAt.Valid {
+			c.DtLastMessage = item.LastMsgAt.Time
 		} else {
 			c.DtLastMessage = time.Now()
 		}
 
-		// Get snippet
+		// Unread Count
+		if item.LastReadId.Valid && item.LastReadId.String != "" {
+			countQuery := `
+                SELECT COUNT(*) 
+                FROM messages 
+                WHERE conversation_id = ? 
+                AND created_at > (SELECT created_at FROM messages WHERE id = ?)
+                AND sender_id != ? 
+            `
+			_ = db.c.QueryRow(countQuery, c.ID, item.LastReadId.String, userID).Scan(&c.UnreadCount)
+		} else {
+			_ = db.c.QueryRow(`SELECT COUNT(*) FROM messages WHERE conversation_id = ? AND sender_id != ?`, c.ID, userID).Scan(&c.UnreadCount)
+		}
+
+		// Snippet
 		_ = db.c.QueryRow(`SELECT content FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 1`, c.ID).Scan(&c.Snippet)
 
+		// Dettagli Specifici (Gruppo o Privata)
 		switch c.ConversationType {
 		case "group":
-			if gName.Valid {
-				v := gName.String
+			if item.GName.Valid {
+				v := item.GName.String
 				c.GroupName = &v
 			}
-			if gPhoto.Valid {
-				v := gPhoto.String
+			if item.GPhoto.Valid {
+				v := item.GPhoto.String
 				c.GroupPhoto = &v
 			}
-			if gDesc.Valid {
-				v := gDesc.String
+			if item.GDesc.Valid {
+				v := item.GDesc.String
 				c.GroupDescription = &v
 			}
 
 		case "private":
-			// Trovo l'altro utente
 			var otherName, otherPhoto, otherID string
 			err := db.c.QueryRow(`
                 SELECT u.username, u.profile_photo, u.id
@@ -103,14 +147,10 @@ func (db *appdbimpl) GetConversations(userID string) ([]Conversation, error) {
 			}
 		}
 
-		conversations = append(conversations, c)
+		finalConversations = append(finalConversations, c)
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return conversations, nil
+	return finalConversations, nil
 }
 
 func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID string) (Conversation, error) {
@@ -179,20 +219,39 @@ func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID
 
 		defer func() { _ = rows.Close() }()
 
-		var members []string
+		var members []GroupMember
 		var admins []string
 
 		for rows.Next() {
 			var uid string
 			var isAdmin bool
 			if err := rows.Scan(&uid, &isAdmin); err != nil {
+				defer func() { _ = rows.Close() }()
 				return Conversation{}, err
 			}
-			members = append(members, uid)
+
+			// Recupero i dettagli dell'utente usando getUserByID
+			user, err := db.GetUserByID(uid)
+
+			var username string
+			if err == nil {
+				username = user.Username
+			} else {
+				// Se l'utente non esiste più (es. cancellato), metto un placeholder
+				username = "Unknown"
+			}
+
+			// Aggiungo l'oggetto completo alla lista
+			members = append(members, GroupMember{
+				UserID:   uid,
+				Username: username,
+			})
+			// -------------------------------------------
 			if isAdmin {
 				admins = append(admins, uid)
 			}
 		}
+		defer func() { _ = rows.Close() }() // Chiudo il cursore manualmente alla fine
 
 		if err := rows.Err(); err != nil {
 			return Conversation{}, err
@@ -283,15 +342,22 @@ func (db *appdbimpl) CreateGroup(name string, desc string, photo string, creator
 		return Conversation{}, err
 	}
 
+	// Qui inserisco FORZATAMENTE chi crea il gruppo
+	// E lo setto come ADMIN (is_admin = 1)
 	_, err = tx.Exec(`INSERT INTO participants (conversation_id, user_id, is_admin) VALUES (?, ?, 1)`, groupID, creatorID)
 	if err != nil {
 		return Conversation{}, err
 	}
 
+	// Ciclo la lista degli altri membri che mi ha mandato il Frontend
 	for _, memberID := range membersIDs {
+		// Se Colui che crea il gruppo, è tra i membri da aggiungere, allora continuo
 		if memberID == creatorID {
 			continue
 		}
+
+		// Se il Frontend per sbaglio inserisce l'ID dello user loggato in sessione anche nella lista "members",
+		// questo IF lo salta. Così evito che lo user evitidi di provare a inserirsi due volte --> crash Unicità SQL.
 		_, err = tx.Exec(`INSERT INTO participants (conversation_id, user_id, is_admin) VALUES (?, ?, 0)`, groupID, memberID)
 		if err != nil {
 			return Conversation{}, err
@@ -303,6 +369,7 @@ func (db *appdbimpl) CreateGroup(name string, desc string, photo string, creator
 	return Conversation{ID: groupID, ConversationType: "group", GroupName: &name}, nil
 }
 
+/*
 // DeletePrivateChatForUser "nasconde" la chat rimuovendo l'utente dai partecipanti.
 // SE però non rimangono più partecipanti (anche l'altro utente l'ha cancellata),
 // allora elimina definitivamente la conversazione e tutti i messaggi dal DB.
@@ -350,6 +417,7 @@ func (db *appdbimpl) DeletePrivateChatForUser(conversationID string, userID stri
 	// Confermo le modifiche
 	return tx.Commit()
 }
+*/
 
 // AddGroupMember aggiunge un utente a un gruppo esistente.
 func (db *appdbimpl) AddGroupMember(groupID string, userIDToAdd string) error {
@@ -363,8 +431,54 @@ func (db *appdbimpl) AddGroupMember(groupID string, userIDToAdd string) error {
 	return nil
 }
 
-// rimuove un membro dal gruppo.
+// Rimuove un membro dal gruppo o cancella il gruppo se è l'ultimo
 func (db *appdbimpl) RemoveGroupMember(groupID string, userIDToRemove string) error {
+	// Conto quanti membri ha il gruppo in totale
+	var memberCount int
+	err := db.c.QueryRow(`SELECT COUNT(*) FROM participants WHERE conversation_id = ?`, groupID).Scan(&memberCount)
+	if err != nil {
+		return err
+	}
+
+	// 1° Caso
+	// Se l'utente è l'ultimo rimasto (memberCount == 1)
+	// Devo eliminare l'intera conversazione.
+	if memberCount == 1 {
+		// Grazie al "ON DELETE CASCADE" che ho definito nello schema participants e messages,
+		// cancellando la conversazione si cancelleranno da soli i partecipanti e i messaggi.
+
+		_, err = db.c.Exec(`DELETE FROM conversations WHERE id = ?`, groupID)
+		return err
+	}
+
+	// 2° Caso
+	// Ci sono altri membri. Controllo se chi esce è Admin.
+	var isAdmin bool
+
+	err = db.c.QueryRow(`SELECT is_admin FROM participants WHERE conversation_id = ? AND user_id = ?`, groupID, userIDToRemove).Scan(&isAdmin)
+	if err != nil {
+		return ErrUserNotMember // Utente non trovato nel gruppo
+	}
+
+	// Se l'utente è Admin, controllo se ci sono ALTRI admin
+	if isAdmin {
+		var otherAdminsCount int
+		err = db.c.QueryRow(`
+			SELECT COUNT(*) FROM participants 
+			WHERE conversation_id = ? AND is_admin = 1 AND user_id != ?`, groupID, userIDToRemove).Scan(&otherAdminsCount)
+		if err != nil {
+			return err
+		}
+
+		// Se non ci sono altri admin, BLOCCO L'USCITA
+		if otherAdminsCount == 0 {
+			return ErrLastAdminCannotLeave
+		}
+	}
+
+	// 3° Caso
+	// Uscita Standard
+	// Elimino solo la riga del partecipante
 	res, err := db.c.Exec(`DELETE FROM participants WHERE conversation_id = ? AND user_id = ?`, groupID, userIDToRemove)
 	if err != nil {
 		return err
@@ -375,12 +489,13 @@ func (db *appdbimpl) RemoveGroupMember(groupID string, userIDToRemove string) er
 		return err
 	}
 	if rows == 0 {
-		return ErrUserNotMember // L'utente non era nel gruppo
+		return ErrUserNotMember
 	}
+
 	return nil
 }
 
-// promuove o retrocede un utente (isAdmin = true/false).
+// Promuove o Retrocede un utente (isAdmin = true/false).
 func (db *appdbimpl) ToggleAdminStatus(groupID string, userID string, isAdmin bool) error {
 	res, err := db.c.Exec(`UPDATE participants SET is_admin = ? WHERE conversation_id = ? AND user_id = ?`, isAdmin, groupID, userID)
 	if err != nil {

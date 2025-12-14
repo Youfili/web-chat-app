@@ -32,6 +32,7 @@ type Conversation struct {
 	ID               string    `json:"id"`
 	Snippet          string    `json:"snippet"`
 	DtLastMessage    time.Time `json:"dtLastMessage"`
+	UnreadCount      int       `json:"unreadCount"` // Conteggio dei messaggi non letti
 
 	// Private Chat Fields (Only if type="private")
 	RecipientUser     *string `json:"recipientUser,omitempty"`
@@ -39,11 +40,11 @@ type Conversation struct {
 	UserPhoto         *string `json:"userPhoto,omitempty"`
 
 	// Group Chat Fields (Only if type="group")
-	GroupName        *string   `json:"groupName,omitempty"`
-	GroupDescription *string   `json:"groupDescription,omitempty"`
-	GroupPhoto       *string   `json:"groupPhoto,omitempty"`
-	Members          *[]string `json:"members,omitempty"` // Array of UUIDs
-	Admins           *[]string `json:"admins,omitempty"`  // Array of UUIDs
+	GroupName        *string        `json:"groupName,omitempty"`
+	GroupDescription *string        `json:"groupDescription,omitempty"`
+	GroupPhoto       *string        `json:"groupPhoto,omitempty"`
+	Members          *[]GroupMember `json:"members,omitempty"` // Array of UUIDs & Usernames
+	Admins           *[]string      `json:"admins,omitempty"`  // Array of UUIDs
 }
 
 // ConversationList is the response for GET /conversations
@@ -127,6 +128,11 @@ type GroupChatPrototype struct {
 	GroupName        string   `json:"groupName"`
 	GroupDescription string   `json:"groupDescription"`
 	Members          []string `json:"members"` // List of User IDs
+}
+
+type GroupMember struct {
+	UserID   string `json:"userId"`
+	Username string `json:"username"`
 }
 
 // AddMembersRequest payload

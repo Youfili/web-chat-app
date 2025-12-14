@@ -39,17 +39,18 @@ import (
 
 // L'handler controllerà questi errori per decidere se mandare 404, 403 o 500.
 var (
-	ErrUserNotFound      = errors.New("user not found")
-	ErrChatNotFound      = errors.New("conversation not found")
-	ErrMessageNotFound   = errors.New("message not found")
-	ErrReactionNotFound  = errors.New("reaction not found")
-	ErrUserNotMember     = errors.New("user is not a member of this conversation")
-	ErrUserNotAdmin      = errors.New("user is not an admin of this group")
-	ErrUsernameTaken     = errors.New("username already taken")
-	ErrSelfOperation     = errors.New("operation on self not allowed") // Es. chat privata con se stessi o auto-rimozione admin errata
-	ErrDuplicateReaction = errors.New("user already reacted to this message")
-	ErrPrivateChatExists = errors.New("private chat already exists") // Utile per il check se una chat privata già esiste, quando l'user ne vuole creare una nuova con uno specifico utente (dimenticandosi che già ne aveva una)
-	ErrConstraint        = errors.New("constraint violated")
+	ErrUserNotFound         = errors.New("user not found")
+	ErrChatNotFound         = errors.New("conversation not found")
+	ErrMessageNotFound      = errors.New("message not found")
+	ErrReactionNotFound     = errors.New("reaction not found")
+	ErrUserNotMember        = errors.New("user is not a member of this conversation")
+	ErrUserNotAdmin         = errors.New("user is not an admin of this group")
+	ErrUsernameTaken        = errors.New("username already taken")
+	ErrSelfOperation        = errors.New("operation on self not allowed") // Es. chat privata con se stessi o auto-rimozione admin errata
+	ErrDuplicateReaction    = errors.New("user already reacted to this message")
+	ErrPrivateChatExists    = errors.New("private chat already exists") // Utile per il check se una chat privata già esiste, quando l'user ne vuole creare una nuova con uno specifico utente (dimenticandosi che già ne aveva una)
+	ErrConstraint           = errors.New("constraint violated")
+	ErrLastAdminCannotLeave = errors.New("cannot leave: you are the last admin")
 )
 
 // AppDatabase is the high level interface for the DB
@@ -107,8 +108,8 @@ type AppDatabase interface {
 	// Fondamentale per la logica di "Forward" intelligente.
 	CheckIfPrivateChatExists(userA string, userB string) (string, bool, error)
 
-	// DeletePrivateChatForUser nasconde/elimina la chat per l'utente richiedente.
-	DeletePrivateChatForUser(conversationID string, userID string) error
+	//// DeletePrivateChatForUser nasconde/elimina la chat per l'utente richiedente.
+	//DeletePrivateChatForUser(conversationID string, userID string) error
 
 	// ------------------------------------------------
 	// GROUP CHATS
@@ -141,7 +142,7 @@ type AppDatabase interface {
 	// GetMessages recupera la cronologia.
 	// 'before': timestamp per paginazione (messaggi più vecchi di...).
 	// 'limit': numero messaggi.
-	GetMessages(conversationID string, limit int, before time.Time) ([]Message, error)
+	GetMessages(username string, conversationID string, limit int, before time.Time) ([]Message, error)
 
 	// Return Message by ID
 	GetMessageByID(messageID string) (Message, error)
