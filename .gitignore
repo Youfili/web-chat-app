@@ -14,3 +14,5 @@ docker-compose.log
 
 .vscode/*
 !.vscode/extensions.json
+
+wasa-text.db

@@ -46,7 +46,7 @@ func (db *appdbimpl) GetUserByID(id string) (User, error) {
 	var u User
 	query := `SELECT id, username, profile_photo, status FROM users WHERE id = ?`
 	err := db.c.QueryRow(query, id).Scan(&u.ID, &u.Username, &u.ProfilePhoto, &u.Status)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, ErrUserNotFound
 	}
 	return u, err
@@ -56,7 +56,7 @@ func (db *appdbimpl) GetUserByUsername(username string) (User, error) {
 	var u User
 	query := `SELECT id, username, profile_photo, status FROM users WHERE username = ?`
 	err := db.c.QueryRow(query, username).Scan(&u.ID, &u.Username, &u.ProfilePhoto, &u.Status)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, ErrUserNotFound
 	}
 	return u, err
