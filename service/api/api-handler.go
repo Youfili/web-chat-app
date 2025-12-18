@@ -55,7 +55,7 @@ func (rt *_router) Handler() http.Handler {
 	rt.router.GET("/wasatext/:username/private_chats/:conversationId", rt.getPrivateChatById)
 
 	//// Delete private chat
-	//rt.router.DELETE("/wasatext/:username/private_chats/:conversationId", rt.deletePrivateChat)
+	// rt.router.DELETE("/wasatext/:username/private_chats/:conversationId", rt.deletePrivateChat)
 
 	// ------------------------------------------------
 	// GROUP CHATS (Root level)

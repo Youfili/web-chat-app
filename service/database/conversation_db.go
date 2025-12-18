@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -83,6 +84,10 @@ func (db *appdbimpl) GetConversations(userID string) ([]Conversation, error) {
 	}
 	// Chiudo la Connessione Principale Qui! --> Mi dava problemi di Deadlock
 	defer func() { _ = rows.Close() }()
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
 	// FASE 2: Arricchisco i dati (Snippet, Unread, Private User Info)
 	// Ora posso fare quante query voglio senza bloccare nulla.
@@ -175,7 +180,7 @@ func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID
 		&lastMsgAt,
 	)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		// Se non trovo righe, o la chat non esiste o l'utente non è membro.
 		return Conversation{}, ErrChatNotFound
 	}
@@ -251,7 +256,6 @@ func (db *appdbimpl) GetConversationByID(conversationID string, requestingUserID
 				admins = append(admins, uid)
 			}
 		}
-		defer func() { _ = rows.Close() }() // Chiudo il cursore manualmente alla fine
 
 		if err := rows.Err(); err != nil {
 			return Conversation{}, err
@@ -318,7 +322,7 @@ func (db *appdbimpl) CheckIfPrivateChatExists(userA string, userB string) (strin
 		LIMIT 1`
 	var chatID string
 	err := db.c.QueryRow(query, userA, userB).Scan(&chatID)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, nil
 	}
 	if err != nil {

@@ -109,7 +109,7 @@ type AppDatabase interface {
 	CheckIfPrivateChatExists(userA string, userB string) (string, bool, error)
 
 	//// DeletePrivateChatForUser nasconde/elimina la chat per l'utente richiedente.
-	//DeletePrivateChatForUser(conversationID string, userID string) error
+	// DeletePrivateChatForUser(conversationID string, userID string) error
 
 	// ------------------------------------------------
 	// GROUP CHATS

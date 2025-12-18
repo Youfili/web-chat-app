@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -150,6 +151,9 @@ func (db *appdbimpl) GetMessages(username string, conversationID string, limit i
 
 		msgs = append(msgs, m)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
 	defer func() { _ = rows.Close() }() // Chiudo la connessione della query principale
 
@@ -195,7 +199,7 @@ func (db *appdbimpl) GetMessageByID(messageID string) (Message, error) {
 		&m.SenderUsername,
 	)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return Message{}, ErrMessageNotFound
 	}
 	if err != nil {
