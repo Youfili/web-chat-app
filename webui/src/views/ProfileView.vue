@@ -67,16 +67,22 @@ export default {
 
 
             try {
+                // Chiamata API col vecchio nome (this.username)
                 const res = await api.setMyUsername(this.username, this.userProfile.username)
-                // Aggiorno il localStorage e ricarico
-                localStorage.setItem('username', res.username)
-                this.msg = "Username updated! (You might need to login again)"
-                this.msgType = 'success'
 
-                // Timeout per far leggere il messaggio e poi logout
-                setTimeout(() => {
-                    this.$router.push('/login')
-                }, 1500)
+                // 3. Aggiornamento dello Stato Locale
+                const newName = res.username; // Il nuovo Username restituito dal server
+
+                // Aggiorno il localStorage e ricarico
+                localStorage.setItem('username', newName)   // Aggiorno Storage
+                this.username = newName;                    // Aggiorno variabile locale del componente
+
+                // Feedback (Visuale) Utente 
+                this.msg = "Username updated successfully!";
+                this.msgType = 'success';
+
+                // Ricarico il profilo usando il NUOVO username per essere sicuro che tutto sia sincronizzato
+                await this.loadProfile();
 
             } catch (e) {
                 // Gestione Errori in modo specifico --> Cosi utente capisce il motivo per il quale non riesce a cambiare username
@@ -224,7 +230,7 @@ export default {
                                         <input type="text" class="form-control border-start-0" v-model="userProfile.username">
                                         <button class="btn btn-dark" @click="updateUsername">Save</button>
                                     </div>
-                                    <div class="form-text small">Changing username requires re-login.</div>
+                                    <div class="form-text small">Your username will be updated instantly.</div>
                                 </div>
 
                                 <div class="mb-4">
