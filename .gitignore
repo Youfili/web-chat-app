@@ -15,5 +15,22 @@ docker-compose.log
 .vscode/*
 !.vscode/extensions.json
 
+# ignoro il database (non lo carico su github)
 wasa-text.db
-images/
+
+# Ignoro tutto nella cartella images principale
+images/*
+
+# Non ignoraro la cartella in sé
+!images/avatars/
+# Ignoro tutti i file dentro avatars...
+images/avatars/*
+# TRANNE il file .gitkeep
+!images/avatars/.gitkeep
+
+# Non ignoro la cartella in sé
+!images/media/
+# Ignoro tutti i file dentro media...
+images/media/*
+# TRANNE il file .gitkeep
+!images/media/.gitkeep
