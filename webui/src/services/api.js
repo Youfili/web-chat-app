@@ -1,10 +1,7 @@
 // Modulo che contiene le chiamate HTTP
-
-
 import axios from "./axios";
 
-// Variabile globale per gestire l'annullamento delle richieste dei messaggi
-// (Evita race conditions quando si cambia chat velocemente)
+// Variabile globale per gestire l'annullamento delle richieste dei messaggi --> (Evita race conditions quando si cambia chat velocemente)
 let messagesAbortController = null;
 
 export default {

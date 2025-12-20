@@ -1,0 +1,19 @@
+# .dockerignore
+
+# Ignora la cartella gigante delle dipendenze locali (le scarico dentro Docker)
+webui/node_modules
+node_modules
+
+# Ignora i file di build locali
+webui/dist
+dist
+
+# Ignora i file di sistema e git
+.git
+.gitignore
+.idea
+.vscode
+.DS_Store
+
+# Ignora le immagini locali (perché le monto come volume, non serve copiarle)
+images/

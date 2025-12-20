@@ -1,0 +1,39 @@
+### BUILD (Compilazione) ### 
+
+# Uso un'immagine di Go come base --> Builder (Compilazione) --> Creo l'eseguibile webapi
+FROM golang:1.17-alpine AS backend-builder
+
+# Imposto la cartella di lavoro dentro il container
+WORKDIR /app
+
+# Copio i file delle dipendenze e le scarico 
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copio tutto il codice sorgente del backend
+COPY . .
+
+# Compilo il progetto
+RUN go build -o main ./cmd/webapi
+
+# ---------------------------------------------------------------------------------------------
+
+### RUN (Esecuzione) ###
+
+# Uso una versiona di linux leggera (alpine)
+FROM alpine:latest
+
+# Imposto la cartella di lavoro dentro il container
+WORKDIR /root/
+
+# Copio SOLO l'eseguibile dalla build precedente (buona pratica di sicurezza) --> "Multi-Stage Build"
+COPY --from=backend-builder /app/main .
+
+# Creo la struttura delle cartelle per le immagini per sicurezza
+RUN mkdir -p images/media images/avatars
+
+# Espongo la porta su cui gira il server Go 
+EXPOSE 3000
+
+# Comando per avviare l'applicazione
+CMD ["./main"]
