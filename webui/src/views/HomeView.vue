@@ -62,9 +62,14 @@ export default {
             // Variabili Inolto Messaggio
             showForwardModal: false,    // Mostra/Nasconde il modale
             messageToForward: null,     // L'oggetto messaggio che sto inoltrando
+            forwardSearchQuery: "",     // Testo ricerca inoltro
+            forwardSearchResults: [],   // Risultati ricerca inoltro
 
             // Variabili Reaction
             reactionOptions: ["👍", "❤️", "😂", "😮", "😢", "😡"],  // Emoji da usare per le Reaction
+
+            // Variabili Reply to Message
+            replyingToMessage: null,    // Oggetto del messaggio a cui sto rispondendo
         }
     },
 
@@ -257,6 +262,11 @@ export default {
             this.showForwardModal = true;
         },
 
+
+        // ----------------
+        // FORWARD
+        // ----------------
+
         // Esegue l'inoltro di un messaggio verso una chat specifica
         async doForwardToChat(targetChat) {
             if (!this.messageToForward) return;
@@ -292,6 +302,79 @@ export default {
 
             } catch (e) {
                 alert("Errore durante l'inoltro: " + e.toString());
+            }
+        },
+
+        // Cerca utenti globali per l'inoltro (Non solo le chat che già ho aperto)
+        async searchUsersForForward() {
+            // Se la casella è vuota, pulisco i risultati
+            if (this.forwardSearchQuery.length < 1) {
+                this.forwardSearchResults = [];
+                return;
+            }
+            try {
+                const response = await api.searchUsers(this.username, this.forwardSearchQuery);
+                // Filtro: rimuovo me stesso dalla lista
+                this.forwardSearchResults = response.users.filter(u => u.username !== this.username);
+            } catch (e) {
+                console.error("Errore ricerca forward:", e);
+            }
+        },
+
+        // Esegue l'inoltro verso un NUOVO utente (o esistente, ci pensa il backend)
+        async doForwardToUser(user) {
+            if (!this.messageToForward) return;
+
+            if(!confirm(`Forward message to ${user.username}?`)) return;
+
+            try {
+                // Costruisco il payload specificando targetUserId
+                // Il backend capirà che deve cercare o creare una chat privata con questo utente
+                const payload = { 
+                    targetUserId: user.id 
+                };
+                
+                await api.forwardMessage(
+                    this.username, 
+                    this.selectedChatId, 
+                    this.messageToForward.id, 
+                    payload
+                );
+
+                // Reset e chiusura
+                this.showForwardModal = false;
+                this.messageToForward = null;
+                this.forwardSearchQuery = "";
+                this.forwardSearchResults = [];
+
+                alert(`Message forwarded to ${user.username}!`);
+                
+                // Ricarico le conversazioni per far apparire la nuova chat in cima
+                await this.refreshConversations();
+
+            } catch (e) {
+                alert("Error forwarding: " + e.toString());
+            }
+        },
+
+
+        // REPLY
+
+        getRepliedMessageDetails(replyId) {
+            // Caso di sicurezza: se replyId è null o undefined
+            if (!replyId) return { senderUsername: 'Unknown', contentMess: 'Message unavailable' };
+
+            // Se replyId è un "oggetto", prendo l'id, altrimenti uso replyId direttamente
+            const idToSearch = (typeof replyId === 'object' && replyId !== null) ? replyId.id : replyId;
+
+            // Cerco il messaggio dentro la lista 'this.messages' che ho già scaricato
+            const foundMsg = this.messages.find(m => m.id === idToSearch);
+
+            if (foundMsg) {
+                return foundMsg;
+            } else {
+                // Fallback se il messaggio è troppo vecchio e non è nella lista caricata
+                return { senderUsername: 'User', contentMess: 'Message not loaded' };
             }
         },
 
@@ -366,9 +449,17 @@ export default {
 
                 } else {
                     
-                    // Logica Invio Normale
+                    // Logica Invio (Normale o Risposta)
+                    const replyId = this.replyingToMessage ? this.replyingToMessage.id : null;
+
                     // Chiamata API
-                    const response = await api.sendMessage(this.username, this.selectedChatId, this.newMessageText)
+                    const response = await api.sendMessage(
+                        this.username, 
+                        this.selectedChatId, 
+                        this.newMessageText, 
+                        null,    // photoUrl (null se invio testo)
+                        replyId  // replyToMessageId
+                    );
 
                     // Nel backend ho implementato getMessages che restitusce i messsaggi in DESC (dal più nuovo).
                     // Nel selectChat li ho girati (.reverse()). Quindi ora sono [Vecchio, ..., Nuovo].
@@ -377,6 +468,7 @@ export default {
 
                     // Pulisco l'input e scrollo in basso
                     this.newMessageText = ""
+                    this.cancelReply();       // Reset
                     this.scrollToBottom() 
 
                 }
@@ -385,6 +477,25 @@ export default {
                 this.errorMsg = "Error sending message: " + e.toString()
             }
         },
+
+
+        // ------------------------
+        // RISPOSTA A UN MESSAGGIO
+        // ------------------------
+
+        // Avvia la risposta
+        startReplying(msg) {
+            this.replyingToMessage = msg;
+            this.$nextTick(() => {
+                if (this.$refs.messageInput) this.$refs.messageInput.focus();
+            });
+        },
+
+        // Annulla la risposta
+        cancelReply() {
+            this.replyingToMessage = null;
+        },
+
 
         // Funzione Scroll To Bottom
         async scrollToBottom() {
@@ -512,7 +623,7 @@ export default {
             const file = event.target.files[0]
             if (!file) return
 
-            // Reset dell'input (così può ricaricare lo stesso file se sbaglia)
+            // Reset dell'input 
             event.target.value = null
 
             try {
@@ -524,9 +635,9 @@ export default {
                 const imageUrl = response.url
 
                 // Invio l'URL come se fosse un messaggio normale
-                await api.sendMessage(this.username, this.selectedChatId, imageUrl)
+                await api.sendMessage(this.username, this.selectedChatId, imageUrl, imageUrl)
                 
-                // Aggiorno la lista messaggi
+                // Aggiorno la lista messaggi (Aggiorno la chat)
                 await this.refreshChat()
                 this.scrollToBottom()
 
@@ -538,9 +649,19 @@ export default {
         // Helper per capire se una stringa è un'immagine
         isImage(content) {
             if (!content) return false
-            // Controllo se inizia con http e finisce con estensioni immagini
-            return content.startsWith('http') && 
-                (content.match(/\.(jpeg|jpg|gif|png)$/i) != null)
+            // Controllo se è una stringa
+            if (typeof content !== 'string') return false
+            
+            // Rimuovo spazi bianchi eventuali
+            const cleanContent = content.trim();
+
+            // Deve iniziare con http (o https)
+            const hasHttp = cleanContent.startsWith('http');
+            
+            // Deve contenere un'estensione immagine
+            const hasExtension = cleanContent.match(/\.(jpeg|jpg|gif|png)/i) != null;
+
+            return hasHttp && hasExtension;
         },
 
         // Gestisce il click sulla barra in alto
@@ -933,12 +1054,19 @@ export default {
                                         </small>
                                     </div>
 
-                                     <!-- Se la chat è quella selezionata, il testo dell'anteprima diventa bianco, cosi da poterlo visualizzare meglio-->
+                                    <!-- ANTEPRIMA MESSAGGIO (SIDEBAR) -->
+                                    <!-- Se la chat è quella selezionata, il testo dell'anteprima diventa bianco, cosi da poterlo visualizzare meglio-->
                                     <p 
                                         class="mb-0 small text-truncate"
                                         :class="selectedChatId === chat.id ? 'text-white-50' : 'text-muted'"
                                     >
-                                        {{ chat.snippet }}
+                                        <span v-if="isImage(chat.snippet)">
+                                            📷 Photo
+                                        </span>
+                                        
+                                        <span v-else>
+                                            {{ chat.snippet }}
+                                        </span>
                                     </p>
 
                                 </div>
@@ -978,6 +1106,7 @@ export default {
                         <h5 v-else class="mb-0">Chat</h5>
                     </div>
 
+                    <!-- Container della CHAT -->
                     <div 
                         ref="chatContainer"
                         class="flex-grow-1 overflow-auto p-3 d-flex flex-column" 
@@ -997,11 +1126,32 @@ export default {
                                 style="max-width: 70%; min-width: 150px;">
                                 
                                 <div class="card-body p-2">
+                                    <!-- Grafica del Forwaded sul messaggio in chat -->
                                     <div v-if="msg.isForwarded || msg.forwarded" class="fst-italic mb-1 d-flex align-items-center" 
                                         :class="msg.senderUsername === username ? 'text-white-50' : 'text-muted'" style="font-size: 0.75rem;">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-1"><polyline points="15 14 20 9 15 4"></polyline><path d="M4 20v-7a4 4 0 0 1 4-4h12"></path></svg>
                                         Forwarded
                                     </div>
+
+                                    <!-- Grafica del Reply sul messaggio in chat -->
+                                    <div v-if="msg.replyTo" 
+                                        class="mb-2 rounded overflow-hidden position-relative d-flex flex-column justify-content-center border-start border-4"
+                                        :class="msg.senderUsername === username ? 'border-light' : 'border-primary'"
+                                        style="background: rgba(0,0,0,0.1); padding: 5px 8px; cursor: pointer; min-width: 120px;">
+                                        
+                                        <span class="fw-bold mb-1" style="font-size: 0.75rem; opacity: 0.9;">
+                                            {{ getRepliedMessageDetails(msg.replyTo).senderUsername }}
+                                        </span>
+                                        
+                                        <span class="text-truncate d-flex align-items-center" style="font-size: 0.8rem; opacity: 0.8;">
+                                            <i v-if="isImage(getRepliedMessageDetails(msg.replyTo).contentMess)" class="feather icon-image me-1"></i>
+                                            
+                                            {{ isImage(getRepliedMessageDetails(msg.replyTo).contentMess) 
+                                                ? 'Photo' 
+                                                : getRepliedMessageDetails(msg.replyTo).contentMess }}
+                                        </span>
+                                    </div>
+
                                     
                                     <small v-if="msg.senderUsername !== username" class="fw-bold d-block mb-1 text-primary">
                                         {{ msg.senderUsername }}
@@ -1038,6 +1188,7 @@ export default {
 
                                         </span>
                                     </div>
+
                                 </div>
 
                                 <div class="message-actions">
@@ -1063,11 +1214,14 @@ export default {
                                                 </div>
                                             </li>
                                             
+                                            <!-- EDIT -->
                                             <li v-if="msg.senderUsername === username">
                                                 <button class="dropdown-item d-flex align-items-center gap-2" @click="startEditing(msg)">
                                                     <i class="feather icon-edit-2 text-primary"></i> Edit
                                                 </button>
                                             </li>
+
+                                            <!-- DELETE -->
                                             <li v-if="msg.senderUsername === username">
                                                 <button class="dropdown-item d-flex align-items-center gap-2 text-danger" @click="doDeleteMessage(msg.id)">
                                                     <i class="feather icon-trash-2"></i> Delete
@@ -1076,10 +1230,18 @@ export default {
                                             
                                             <li v-if="msg.senderUsername === username"><hr class="dropdown-divider"></li>
                                             
+                                            <!-- FORWARD -->
                                             <li>
                                                 <button class="dropdown-item d-flex align-items-center gap-2" @click="openForwardModal(msg)">
                                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
                                                     Forward
+                                                </button>
+                                            </li>
+
+                                            <!-- REPLY -->
+                                            <li>
+                                                <button class="dropdown-item d-flex align-items-center gap-2" @click="startReplying(msg)">
+                                                    <i class="feather icon-corner-up-left text-secondary"></i> Reply
                                                 </button>
                                             </li>
 
@@ -1098,66 +1260,98 @@ export default {
                     </div>
 
                     <!-- Barra Bottom della Chat, quella dove inserire il testo, emoji, immagine -->                    
-                    <div class="p-3 bg-light border-top d-flex gap-2 align-items-center position-relative">
+                    <div class="p-3 bg-light border-top d-flex flex-column position-relative" style="z-index: 100;">
+                        <div v-if="replyingToMessage || isEditing" class="mb-2 w-100">
 
-                        <div v-if="isEditing" class="editing-banner shadow-sm d-flex justify-content-between align-items-center">
-                            <div class="d-flex align-items-center gap-2">
-                                <i class="feather icon-edit text-primary"></i>
-                                <div class="d-flex flex-column lh-1">
-                                    <span class="fw-bold text-primary small">Editing Message</span>
-                                    <span class="text-muted small text-truncate" style="max-width: 200px;">{{ originalMessageText }}</span>
+                            <!-- Bottom Bar Reply -->
+                            <div v-if="replyingToMessage" 
+                                class="d-flex justify-content-between align-items-center p-2 rounded bg-white shadow-sm position-relative overflow-hidden" 
+                                style="border-left: 5px solid #00a884; background-color: rgba(255,255,255,0.95);">
+                                
+                                <div class="d-flex flex-column ps-2 overflow-hidden w-100">
+                                    <span class="fw-bold small mb-1" style="color: #00a884;">
+                                        {{ replyingToMessage.senderUsername }}
+                                    </span>
+                                    
+                                    <span class="text-muted small text-truncate" style="max-width: 90%; font-size: 0.85rem;">
+                                        <i v-if="isImage(replyingToMessage.contentMess)" class="feather icon-image me-1"></i>
+                                        {{ isImage(replyingToMessage.contentMess) ? 'Photo' : replyingToMessage.contentMess }}
+                                    </span>
                                 </div>
-                            </div>
-                            <button class="btn btn-sm btn-close" @click="cancelEditing"></button>
-                        </div>
 
-                        <div v-if="showEmojiPicker" ref="emojiPicker" class="emoji-picker-popup shadow-sm">
-                            <div class="emoji-grid">
-                                <button 
-                                    v-for="emoji in emojiList" 
-                                    :key="emoji" 
-                                    class="emoji-btn"
-                                    type="button"
-                                    @click="addEmoji(emoji)"
-                                    :title="emoji"
-                                >
-                                    {{ emoji }}
+                                <div v-if="isImage(replyingToMessage.contentMess)" class="me-3 rounded overflow-hidden border" style="width: 40px; height: 40px;">
+                                    <img :src="replyingToMessage.contentMess" class="w-100 h-100" style="object-fit: cover;">
+                                </div>
+
+                                <button class="btn btn-sm btn-link text-secondary p-0 ms-2" @click="cancelReply">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                                 </button>
                             </div>
+
+                            <div v-if="isEditing" 
+                                 class="d-flex justify-content-between align-items-center p-2 rounded bg-white shadow-sm" 
+                                 style="border-left: 5px solid #0d6efd;">
+                                <div class="d-flex align-items-center gap-2 overflow-hidden">
+                                    <i class="feather icon-edit text-primary"></i>
+                                    <div class="d-flex flex-column lh-1 overflow-hidden">
+                                        <span class="fw-bold text-primary small">Editing Message</span>
+                                        <span class="text-muted small text-truncate">{{ originalMessageText }}</span>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-close" @click="cancelEditing"></button>
+                            </div>
+
                         </div>
-                        
-                        <input 
-                            type="file" 
-                            ref="fileInput" 
-                            style="display: none" 
-                            accept="image/png, image/jpeg, image/gif"
-                            @change="handleFileUpload"
-                        >
 
-                        <!-- Bottone per inserire Emoji -->
-                        <button class="btn btn-outline-secondary border-0" ref="emojiBtn" @click="showEmojiPicker = !showEmojiPicker">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-smile"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
-                        </button>
+                        <div class="d-flex gap-2 align-items-center w-100">
+                            <div v-if="showEmojiPicker" ref="emojiPicker" class="emoji-picker-popup shadow-sm" style="bottom: 70px;">
+                                <div class="emoji-grid">
+                                    <button 
+                                        v-for="emoji in emojiList" 
+                                        :key="emoji" 
+                                        class="emoji-btn"
+                                        type="button"
+                                        @click="addEmoji(emoji)"
+                                    >
+                                        {{ emoji }}
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <input 
+                                type="file" 
+                                ref="fileInput" 
+                                style="display: none" 
+                                accept="image/png, image/jpeg, image/gif"
+                                @change="handleFileUpload"
+                            >
 
-                        <!-- Bottone per inserire Immagine -->
-                        <button class="btn btn-outline-secondary border-0" @click="triggerFileUpload" title="Send Image">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-camera"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                        </button>
+                            <button class="btn btn-link text-secondary text-decoration-none p-0" ref="emojiBtn" @click="showEmojiPicker = !showEmojiPicker">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-smile"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
+                            </button>
 
-                        <input 
-                            ref="messageInput"   
-                            type="text" 
-                            class="form-control" 
-                            placeholder="Type a message..."
-                            v-model="newMessageText"
-                            @keyup.enter="sendMsg"
-                        >
-                        
-                        <!-- Bottone per Inviare il Messaggio -->
-                        <button class="btn" :class="isEditing ? 'btn-success' : 'btn-primary'" @click="sendMsg">
-                            <i v-if="isEditing" class="feather icon-check"></i>
-                            <span v-else>Send</span>
-                        </button>
+                            <button class="btn btn-link text-secondary text-decoration-none p-0" @click="triggerFileUpload" title="Send Image">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-camera"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                            </button>
+
+                            <input 
+                                ref="messageInput"   
+                                type="text" 
+                                class="form-control rounded-pill border-0 bg-white shadow-sm px-3" 
+                                placeholder="Type a message..."
+                                v-model="newMessageText"
+                                @keyup.enter="sendMsg"
+                                style="height: 45px;"
+                            >
+                            
+                            <button class="btn rounded-circle shadow-sm d-flex align-items-center justify-content-center" 
+                                    :class="isEditing ? 'btn-success' : 'btn-primary'" 
+                                    style="width: 45px; height: 45px;"
+                                    @click="sendMsg">
+                                <i v-if="isEditing" class="feather icon-check"></i>
+                                <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-send"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -1316,9 +1510,47 @@ export default {
                     <button @click="showForwardModal = false" class="btn-close"></button>
                 </div>
 
+                <div class="p-2 border-bottom bg-white">
+                    <input 
+                        type="text" 
+                        class="form-control" 
+                        placeholder="Search for people..." 
+                        v-model="forwardSearchQuery"
+                        @input="searchUsersForForward"
+                    >
+                </div>
+
                 <div class="flex-grow-1 overflow-auto">
-                    <div class="list-group list-group-flush">
+                    
+                    <div v-if="forwardSearchQuery.length > 0">
+                        <div class="p-2 text-muted small bg-light fw-bold">Global Search</div>
                         
+                        <div v-if="forwardSearchResults.length === 0" class="p-3 text-center text-muted small">
+                            No users found.
+                        </div>
+
+                        <button 
+                            v-for="user in forwardSearchResults" 
+                            :key="user.id"
+                            @click="doForwardToUser(user)"
+                            class="list-group-item list-group-item-action d-flex align-items-center p-3 border-bottom"
+                        >
+                            <img 
+                                :src="user.profilePhoto || '/default_avatar.jpg'" 
+                                class="rounded-circle me-3" 
+                                width="40" height="40"
+                                style="object-fit: cover;"
+                            >
+                            <div>
+                                <h6 class="mb-0">{{ user.username }}</h6>
+                                <small class="text-primary">Send to new chat</small>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div class="list-group list-group-flush">
+                        <div class="p-2 text-muted small bg-light fw-bold">Recent Chats</div>
+
                         <button 
                             v-for="chat in conversations" 
                             :key="chat.id"

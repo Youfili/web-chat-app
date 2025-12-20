@@ -67,6 +67,8 @@ type Message struct {
 	SenderUsername string     `json:"senderUsername"`
 	Forwarded      bool       `json:"forwarded"`
 	Reactions      []Reaction `json:"reactions"`
+	MessagePhoto   *string    `json:"messagePhoto,omitempty"` // (Puntatore) perché può essere NULL
+	ReplyTo        *string    `json:"replyTo,omitempty"`      // (Puntatore perché è opzionale (NULL)
 }
 
 // MessageList is the response for GET /messages
@@ -76,7 +78,9 @@ type MessageList struct {
 
 // NewMessageRequest is the payload for sending a message
 type NewMessageRequest struct {
-	ContentMess string `json:"contentMess"`
+	ContentMess  string  `json:"contentMess"`
+	MessagePhoto *string `json:"messagePhoto,omitempty"` // (Puntatore) perché può essere NULL
+	ReplyTo      *string `json:"replyTo,omitempty"`      // (Puntatore perché è opzionale (NULL)
 }
 
 // MessageUpdate is the payload for editing a message

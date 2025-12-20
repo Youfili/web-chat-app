@@ -76,7 +76,7 @@ export default {
 						required 
 						minlength="3" 
 						maxlength="30"
-						pattern="[a-zA-Z0-9._~-]+"
+						pattern="[a-zA-Z0-9._~\-]+"
 						placeholder="Insert yuor username..."
 						@input="username = username.replace(/\s/g, '')"
 					>

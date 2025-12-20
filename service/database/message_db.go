@@ -15,10 +15,13 @@ func createTableMessages(db *sql.DB) error {
 		conversation_id TEXT NOT NULL,
 		sender_id TEXT NOT NULL,
 		content TEXT NOT NULL,
+		photo_url TEXT,
+		reply_to TEXT,
 		created_at DATETIME NOT NULL,		
 		is_forwarded BOOLEAN DEFAULT 0,
 		FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
 		FOREIGN KEY (sender_id) REFERENCES users(id)
+		FOREIGN KEY (reply_to) REFERENCES messages(id) ON DELETE SET NULL
 	);`
 	_, err := db.Exec(query)
 	return err
@@ -42,8 +45,8 @@ func (db *appdbimpl) CreateMessage(msg Message) (Message, error) {
 	}
 
 	// Insert nel DB
-	_, err = tx.Exec(`INSERT INTO messages (id, conversation_id, sender_id, content, created_at, is_forwarded) VALUES (?, ?, ?, ?, ?, ?)`,
-		msg.ID, msg.ConversationID, msg.SenderUserID, msg.ContentMess, msg.Timestamp, msg.Forwarded)
+	_, err = tx.Exec(`INSERT INTO messages (id, conversation_id, sender_id, content, photo_url, reply_to, created_at, is_forwarded) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		msg.ID, msg.ConversationID, msg.SenderUserID, msg.ContentMess, msg.MessagePhoto, msg.ReplyTo, msg.Timestamp, msg.Forwarded)
 	if err != nil {
 		return Message{}, err
 	}
@@ -112,7 +115,7 @@ func (db *appdbimpl) GetMessages(username string, conversationID string, limit i
 
 	// Recupero i Messaggi
 	query := `
-		SELECT m.id, m.content, m.created_at, m.is_forwarded, m.sender_id, u.username
+		SELECT m.id, m.content, m.photo_url, m.reply_to, m.created_at, m.is_forwarded, m.sender_id, u.username
         FROM messages m
         JOIN users u ON m.sender_id = u.id
         WHERE m.conversation_id = ? AND m.created_at < ?
@@ -129,11 +132,25 @@ func (db *appdbimpl) GetMessages(username string, conversationID string, limit i
 
 	for rows.Next() {
 		var m Message
-		err := rows.Scan(&m.ID, &m.ContentMess, &m.Timestamp, &m.Forwarded, &m.SenderUserID, &m.SenderUsername)
+		var photoUrl sql.NullString // Variabile temporanea per gestire il NULL della foto
+		var replyTo sql.NullString  // Variabile per gestire il NULL del "reply message"
+
+		err := rows.Scan(&m.ID, &m.ContentMess, &photoUrl, &replyTo, &m.Timestamp, &m.Forwarded, &m.SenderUserID, &m.SenderUsername)
 		if err != nil {
 			defer func() { _ = rows.Close() }()
 			return nil, err
 		}
+
+		// Converto sql.NullString in *string per la struct
+		if photoUrl.Valid {
+			m.MessagePhoto = &photoUrl.String
+		}
+
+		// Gestione ReplyTo
+		if replyTo.Valid {
+			m.ReplyTo = &replyTo.String
+		}
+
 		m.ConversationID = conversationID
 
 		// ----------------------------------------------------------------
@@ -180,20 +197,25 @@ func (db *appdbimpl) GetMessages(username string, conversationID string, limit i
 
 // GetMessageByID recupera un messaggio specifico (lo uso per Edit, Delete e Forward)
 func (db *appdbimpl) GetMessageByID(messageID string) (Message, error) {
+
 	var m Message
+	var photoUrl sql.NullString // Variabile per gestire il NULL della foto
+	var replyTo sql.NullString  // Variabile per gestire il NULL della replyTo
 
 	// Query con JOIN per avere anche lo username del mittente
 	query := `
-		SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at, m.is_forwarded, u.username
-		FROM messages m
-		JOIN users u ON m.sender_id = u.id
-		WHERE m.id = ?
+		SELECT m.id, m.conversation_id, m.sender_id, m.content, m.photo_url, m.reply_to, m.created_at, m.is_forwarded, u.username
+        FROM messages m
+        JOIN users u ON m.sender_id = u.id
+        WHERE m.id = ?
 	`
 	err := db.c.QueryRow(query, messageID).Scan(
 		&m.ID,
 		&m.ConversationID,
 		&m.SenderUserID,
 		&m.ContentMess,
+		&photoUrl, // Recupero la foto
+		&replyTo,  // Recupero il messaggio a cui "Risponde"
 		&m.Timestamp,
 		&m.Forwarded,
 		&m.SenderUsername,
@@ -204,6 +226,16 @@ func (db *appdbimpl) GetMessageByID(messageID string) (Message, error) {
 	}
 	if err != nil {
 		return Message{}, err
+	}
+
+	// Se c'è una foto valida nel DB, la assegno alla struct
+	if photoUrl.Valid {
+		m.MessagePhoto = &photoUrl.String
+	}
+
+	// Se c'è un reply_to, lo assegno
+	if replyTo.Valid {
+		m.ReplyTo = &replyTo.String
 	}
 
 	// -------------------------------------
@@ -235,26 +267,41 @@ func (db *appdbimpl) EditMessage(messageID string, newContent string) (Message, 
 		return Message{}, ErrMessageNotFound
 	}
 
-	// Recupero l'oggetto "messaggio" completo per restituirlo
+	// Recupero l'oggetto "messaggio" completo per restituirlo (inclusa la Foto se c'è)
 	// Devo fare una JOIN con users per ripopolare il campo SenderUsername --> che serve al frontend per visualizzare il messaggio correttamente.
 	var msg Message
+	var photoUrl sql.NullString // Variabile per gestire il possibile NULL nel DB
+	var replyTo sql.NullString  // Variabile per gestire il possibile NULL nel DB
+
 	query := `
-		SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at, m.is_forwarded, u.username
-		FROM messages m
-		JOIN users u ON m.sender_id = u.id
-		WHERE m.id = ?
+		SELECT m.id, m.conversation_id, m.sender_id, m.content, m.photo_url, m.reply_to, m.created_at, m.is_forwarded, u.username
+        FROM messages m
+        JOIN users u ON m.sender_id = u.id
+        WHERE m.id = ?
 	`
 	err = db.c.QueryRow(query, messageID).Scan(
 		&msg.ID,
 		&msg.ConversationID,
 		&msg.SenderUserID,
 		&msg.ContentMess, // Questo conterrà il nuovo testo (messaggio modificato)
+		&photoUrl,        // Aggiungo &photoUrl allo SCAN --> Recupero la foto
+		&replyTo,         // Aggiungo &replyTo allo SCAN --> Recupero il messaggio a cui rispondo
 		&msg.Timestamp,
 		&msg.Forwarded,
 		&msg.SenderUsername,
 	)
 	if err != nil {
 		return Message{}, err
+	}
+
+	// Se c'è una foto, la assegno alla struct
+	if photoUrl.Valid {
+		msg.MessagePhoto = &photoUrl.String
+	}
+
+	// Se NON è Null (quindi rispondo a un messaggio specifico), lo assegno alla struct
+	if replyTo.Valid {
+		msg.ReplyTo = &replyTo.String
 	}
 
 	// Imposto lo status di default (come in CreateMessage)

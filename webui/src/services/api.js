@@ -197,13 +197,23 @@ export default {
 		}
 	},
 
-	async sendMessage(username, conversationId, content) {
-		const response = await axios.post(
-			`/wasatext/${username}/conversations/${conversationId}/messages`,
-			{ contentMess: content }
-		);
-		return response.data;
-	},
+	async sendMessage(username, conversationId, content, photoUrl = null, replyToMessageId = null) {
+        const payload = { contentMess: content };
+		
+		// Se c'è una foto, la aggiungo al payload
+        if (photoUrl) {
+            payload.messagePhoto = photoUrl;
+        } 
+
+		// Se c'è una risposta, la aggiungo
+        if (replyToMessageId) payload.replyTo = replyToMessageId;
+
+        const response = await axios.post(
+            `/wasatext/${username}/conversations/${conversationId}/messages`,
+            payload
+        );
+        return response.data;
+    },
 
 	async deleteMessage(username, conversationId, messageId) {
 		await axios.delete(`/wasatext/${username}/conversations/${conversationId}/messages/${messageId}`);
