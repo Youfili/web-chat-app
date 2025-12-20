@@ -378,6 +378,16 @@ components:
           maxItems: 300
           items:
             $ref: "#/components/schemas/Reaction"
+        messagePhoto:
+          type: string
+          format: url
+          minLength: 10
+          maxLength: 500
+          description: Optional URL of an image attached to the message
+        replyTo:
+          type: string
+          format: uuid
+          description: ID of the message being replied to (optional)
       required: 
         - id
         - contentMess
@@ -400,6 +410,14 @@ components:
           maxLength: 5000
           pattern: '.*'
           description: Message content (text, emojis).
+        messagePhoto:
+          type: string
+          format: url
+          description: Optional URL of the image to send
+        replyTo:
+          type: string
+          format: uuid
+          description: ID of the message to reply to
       required:
         - contentMess
 

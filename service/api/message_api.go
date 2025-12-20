@@ -27,12 +27,13 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
-	// Validazione
-	if req.ContentMess == "" {
-		http.Error(w, "Message content cannot be empty", http.StatusBadRequest)
+	// Validazione: Deve esserci ALMENO testo O foto
+	if req.ContentMess == "" && req.MessagePhoto == nil {
+		http.Error(w, "Message must contain text or photo", http.StatusBadRequest)
 		return
 	}
 
+	// Recupero User e ConversationID
 	requesterUser, _ := rt.db.GetUserByUsername(pathUsername)
 	conversationID := ps.ByName("conversationId")
 
@@ -48,6 +49,8 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
 		SenderUserID:   requesterUser.ID,
 		SenderUsername: requesterUser.Username, // Popolo subito lo username, ho avuto problemi nel frontend nell'invio del messaggio
 		ContentMess:    req.ContentMess,
+		MessagePhoto:   req.MessagePhoto, // Mappo il campo Foto
+		ReplyTo:        req.ReplyTo,      // Mappo IL campo Reply
 		// Timestamp e ID vengono messi dal DB (vedere message_db.go)
 		Forwarded: false,
 	}
@@ -203,13 +206,14 @@ func (rt *_router) forwardMessage(w http.ResponseWriter, r *http.Request, ps htt
 	}
 
 	// CREAZIONE NUOVO MESSAGGIO
-	// Copio il contenuto, resettiamo ID e Timestamp, settiamo Forwarded = true
+	// Copio il contenuto, resetto ID e Timestamp, setto Forwarded = true
 	newMsg := database.Message{
 		ConversationID: targetChatID,
 		SenderUserID:   requesterUser.ID,
-		ContentMess:    originalMsg.ContentMess, // Contenuto copiato dal DB
-		Forwarded:      true,                    // Flag Forwarded impostato a true, proprio perché questo messaggio è stato inoltrato
-		// Ricordo a me stesso che: Timestamp e ID verranno generati da rt.db.CreateMessage
+		ContentMess:    originalMsg.ContentMess,  // Contenuto copiato dal DB
+		MessagePhoto:   originalMsg.MessagePhoto, // Copio Anche la Foto
+		Forwarded:      true,                     // Flag Forwarded impostato a true, proprio perché questo messaggio è stato inoltrato
+		// (Ricordo a me stesso che): Timestamp e ID verranno generati da rt.db.CreateMessage
 	}
 
 	createdMsg, err := rt.db.CreateMessage(newMsg)
