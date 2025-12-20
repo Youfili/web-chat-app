@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  # Servizio Backend (Go)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+    volumes:
+    # Cosi quando Riavvio Docker NON perdo tutte le foto caricate (avatars e images)  --> il Container viene resettato ogni volta
+      - ./images:/root/images 
+    networks:
+      - web-app-network
+
+  # Servizio Frontend (Vue + Nginx)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - web-app-network
+
+# Rete condivisa per farli parlare tra loro
+networks:
+  web-app-network:
+    driver: bridge
