@@ -70,6 +70,10 @@ export default {
 
             // Variabili Reply to Message
             replyingToMessage: null,    // Oggetto del messaggio a cui sto rispondendo
+
+            // Variabili per gestire l'immagine con didascalia
+            selectedFile: null,        // Il file "grezzo" da caricare
+            selectedFilePreview: null, // L'URL locale per l'anteprima
         }
     },
 
@@ -422,12 +426,23 @@ export default {
         // Invia un nuovo messaggio
         async sendMsg() {
             // Evito invii vuoti o se nessuna chat è selezionata
-            if (!this.newMessageText.trim() || !this.selectedChatId) return
+            // Devo avere almeno (Testo OPPURE File (quindi anche entrambi vanno bene)) E una chat selezionata
+            if ((!this.newMessageText.trim() && !this.selectedFile) || !this.selectedChatId) return;
 
             try {
 
                 this.showEmojiPicker = false // Chiudo le emoji quando invio
+                let photoUrl = null;
+                
+                // Per semplicita di lettura codice ho commentanto dividento il codice in "Fasi"
 
+                // FASE 1: Se c'è un file in "canna", lo carico ora
+                if (this.selectedFile) {
+                    const uploadResp = await api.uploadFile(this.selectedFile, 'media');
+                    photoUrl = uploadResp.url; // Recupero l'URL dal server
+                }
+
+                // FASE 2: Invio il messaggio completo
                 if (this.isEditing){
 
                     // Logica Editing Messaggio
@@ -449,6 +464,7 @@ export default {
 
                 } else {
                     
+                    // Invio Normale (Caption + Foto)
                     // Logica Invio (Normale o Risposta)
                     const replyId = this.replyingToMessage ? this.replyingToMessage.id : null;
 
@@ -456,19 +472,23 @@ export default {
                     const response = await api.sendMessage(
                         this.username, 
                         this.selectedChatId, 
-                        this.newMessageText, 
-                        null,    // photoUrl (null se invio testo)
-                        replyId  // replyToMessageId
+                        this.newMessageText,    // La Didascalia (Caption)
+                        photoUrl,               // URL della foto
+                        replyId                 // replyToMessageId
                     );
 
                     // Nel backend ho implementato getMessages che restitusce i messsaggi in DESC (dal più nuovo).
                     // Nel selectChat li ho girati (.reverse()). Quindi ora sono [Vecchio, ..., Nuovo].
                     // Quindi devo fare PUSH per aggiungere in fondo.
+
+                    //Aggiorno la UI
                     this.messages.push(response) 
 
+                    // FASE 3: Pulizia Totale
                     // Pulisco l'input e scrollo in basso
                     this.newMessageText = ""
-                    this.cancelReply();       // Reset
+                    this.removeSelectedFile();  // Pulisce file e anteprima
+                    this.cancelReply();         // Reset
                     this.scrollToBottom() 
 
                 }
@@ -618,31 +638,33 @@ export default {
             this.$refs.fileInput.click() 
         },
 
-        // Funzione chiamata quando l'utente ha selezionato un file
-        async handleFileUpload(event) {
-            const file = event.target.files[0]
-            if (!file) return
+        // Gestione selezione file (Non invia, prepara solo) 
+        handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
 
-            // Reset dell'input 
-            event.target.value = null
+            // Salvo il file nello stato
+            this.selectedFile = file;
 
-            try {
-                this.showEmojiPicker = false // Chiudo Emoji Panel se aperto
+            // Creo un URL locale temporaneo per mostrare l'anteprima all'utente
+            this.selectedFilePreview = URL.createObjectURL(file);
 
-                // Carico l'immagine sul server
-                // Ricordo: "media" è il tipo che ho definito nel backend per le chat (le immagini che invio nella chat)
-                const response = await api.uploadFile(file, 'media')
-                const imageUrl = response.url
+            // Resetto l'input file HTML (altrimenti non posso riselezionare lo stesso file se sbaglio)
+            event.target.value = "";
+            
+            // Chiudo le emoji e do focus alla barra di testo per la didascalia
+            this.showEmojiPicker = false;
+            this.$nextTick(() => {
+                if (this.$refs.messageInput) this.$refs.messageInput.focus();
+            });
+        },
 
-                // Invio l'URL come se fosse un messaggio normale
-                await api.sendMessage(this.username, this.selectedChatId, imageUrl, imageUrl)
-                
-                // Aggiorno la lista messaggi (Aggiorno la chat)
-                await this.refreshChat()
-                this.scrollToBottom()
-
-            } catch (e) {
-                alert("Error uploading image: " + e.toString())
+        // Rimuove l'immagine selezionata (la "X" sull'anteprima) 
+        removeSelectedFile() {
+            this.selectedFile = null;
+            if (this.selectedFilePreview) {
+                URL.revokeObjectURL(this.selectedFilePreview); // Pulisce la memoria del browser (Url locale temporaneo --> usato per l'anteprima)
+                this.selectedFilePreview = null;
             }
         },
 
@@ -1158,10 +1180,21 @@ export default {
                                         <span v-if="currentChatAdmins.includes(msg.senderUserId)" class="badge bg-light text-secondary border ms-2">Admin</span>
                                     </small>
 
-                                    <div v-if="isImage(msg.contentMess)">
+                                    <!-- Gestisco la Visualizzazione del messaggio (anche se è una Immagine + Testo) -->
+
+                                    <!-- In "messagePhoto" ho salvato l'URL dell' Upload, se c'è stampa l'immagine -->
+                                    <div v-if="msg.messagePhoto">
+                                        <img :src="msg.messagePhoto" class="img-fluid rounded mb-1" style="max-height: 300px; cursor: pointer;">
+                                    </div>
+                                    
+                                    <div v-else-if="isImage(msg.contentMess)">
                                         <img :src="msg.contentMess" class="img-fluid rounded mb-1" style="max-height: 300px; cursor: pointer;">
                                     </div>
-                                    <p v-else class="mb-1 text-break" style="white-space: pre-line;">{{ msg.contentMess }}</p>
+
+                                    <!-- Controllo msg.contentMess. Se c'è del testo (la didascalia), stampo anche il paragrafo <p> -->
+                                    <p v-if="msg.contentMess && !isImage(msg.contentMess)" class="mb-1 text-break" style="white-space: pre-line;">
+                                        {{ msg.contentMess }}
+                                    </p>
                                     
 
                                     <div v-if="msg.reactions && msg.reactions.length > 0" class="d-flex flex-wrap gap-1 mt-2 mb-1">
@@ -1180,10 +1213,14 @@ export default {
 
                                     <div class="text-end lh-1" style="font-size: 0.7rem; opacity: 0.8;">
                                         {{ formatDateTime(msg.timestamp) }}
+
                                         <span v-if="msg.senderUsername === username" class="ms-1">
                                             
+                                            <!-- Doppie Spunte Blu -> Messaggio Letto -->
                                             <span v-if="msg.statusInfo === 'read'" class="fw-bold" style="color: #4df0ff;">✓✓</span>
-                                            
+                                            <!-- Doppie Spunte -> Messaggio Consegnato -->
+                                            <span v-else-if="msg.statusInfo === 'delivered'" class="fw-bold text-secondary">✓✓</span>
+                                            <!-- Spunta Singola -> Messaggio Inviato -->
                                             <span v-else>✓</span>
 
                                         </span>
@@ -1261,7 +1298,7 @@ export default {
 
                     <!-- Barra Bottom della Chat, quella dove inserire il testo, emoji, immagine -->                    
                     <div class="p-3 bg-light border-top d-flex flex-column position-relative" style="z-index: 100;">
-                        <div v-if="replyingToMessage || isEditing" class="mb-2 w-100">
+                        <div v-if="replyingToMessage || isEditing || selectedFile" class="mb-2 w-100">
 
                             <!-- Bottom Bar Reply -->
                             <div v-if="replyingToMessage" 
@@ -1299,6 +1336,18 @@ export default {
                                     </div>
                                 </div>
                                 <button class="btn btn-sm btn-close" @click="cancelEditing"></button>
+                            </div>
+
+                            <div v-if="selectedFile" class="d-flex align-items-center p-2 rounded bg-white shadow-sm border" style="border-left: 5px solid #6610f2 !important;">
+                                <div class="me-3 rounded overflow-hidden border" style="width: 50px; height: 50px;">
+                                    <!-- Ho inserito il DIV con l'Anteprima ( img :src="selectedFilePreview" )-->
+                                    <img :src="selectedFilePreview" class="w-100 h-100" style="object-fit: cover;">
+                                </div>
+                                <div class="flex-grow-1">
+                                    <small class="fw-bold d-block text-dark">Image selected</small>
+                                    <small class="text-muted" style="font-size: 0.75rem;">Add a caption below...</small>
+                                </div>
+                                <button class="btn btn-sm btn-close" @click="removeSelectedFile"></button>
                             </div>
 
                         </div>
@@ -1344,8 +1393,9 @@ export default {
                                 style="height: 45px;"
                             >
                             
+                            <!-- Ho aggiornato la classe :class per diventare verde (btn-success) anche quando c'è un file selezionato, così l'utente capisce che sta inviando qualcosa di diverso dal solito testo. -->
                             <button class="btn rounded-circle shadow-sm d-flex align-items-center justify-content-center" 
-                                    :class="isEditing ? 'btn-success' : 'btn-primary'" 
+                                    :class="(isEditing || selectedFile) ? 'btn-success' : 'btn-primary'"
                                     style="width: 45px; height: 45px;"
                                     @click="sendMsg">
                                 <i v-if="isEditing" class="feather icon-check"></i>

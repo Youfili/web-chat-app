@@ -124,6 +124,7 @@ func (rt *_router) getConversation(w http.ResponseWriter, r *http.Request, ps ht
 func (rt *_router) forwardMessage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// Parsing dei parametri URL
 	pathUsername := ps.ByName("username")
 	if !rt.checkAuth(w, r, pathUsername) {
 		return

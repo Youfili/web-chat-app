@@ -6,6 +6,9 @@ FROM golang:1.17-alpine AS backend-builder
 # Imposto la cartella di lavoro dentro il container
 WORKDIR /app
 
+# Installo le dipendenze C per sqlite (mi dava errore nella correzione del prof)
+RUN apk add --no-cache gcc musl-dev
+
 # Copio i file delle dipendenze e le scarico 
 COPY go.mod go.sum ./
 RUN go mod download
