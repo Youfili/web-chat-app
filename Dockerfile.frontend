@@ -14,7 +14,7 @@ RUN npm install
 COPY webui/ .
 
 # Compilo per la Produzione --> (crea la cartella /app/dist)
-RUN npm run build
+RUN npx vite build --mode production
 
 # ---------------------------------------------------------------------------------------------
 
