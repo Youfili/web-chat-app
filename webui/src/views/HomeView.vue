@@ -1593,7 +1593,12 @@ export default {
                             >
                             <div>
                                 <h6 class="mb-0">{{ user.username }}</h6>
-                                <small class="text-primary">Send to new chat</small>
+                                <small 
+                                    class="text-primary"
+                                    v-if="!conversations.some(chat => chat.conversationType === 'private' && chat.recipientUser === user.id)"
+                                >
+                                    Send to new chat
+                                </small>
                             </div>
                         </button>
                     </div>
