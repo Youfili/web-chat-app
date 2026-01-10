@@ -1215,13 +1215,10 @@ export default {
                                         {{ formatDateTime(msg.timestamp) }}
 
                                         <span v-if="msg.senderUsername === username" class="ms-1">
-                                            
-                                            <!-- Doppie Spunte Blu -> Messaggio Letto -->
-                                            <span v-if="msg.statusInfo === 'read'" class="fw-bold" style="color: #4df0ff;">✓✓</span>
-                                            <!-- Doppie Spunte -> Messaggio Consegnato -->
-                                            <span v-else-if="msg.statusInfo === 'delivered'" class="fw-bold text-secondary">✓✓</span>
-                                            <!-- Spunta Singola -> Messaggio Inviato -->
-                                            <span v-else>✓</span>
+                                            <!-- Messaggio Letto -->
+                                            <span v-if="msg.statusInfo === 'read'" class="fw-bold" style="color: #4df0ff;" title="Read">✓✓</span>
+                                            <!-- Messaggio Consegnato -->
+                                            <span v-else class="fw-bold text-secondary" title="Delivered to server">✓</span>
 
                                         </span>
                                     </div>
