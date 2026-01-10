@@ -1210,15 +1210,17 @@ export default {
                                         </span>
                                     </div>
 
-
+                                    
                                     <div class="text-end lh-1" style="font-size: 0.7rem; opacity: 0.8;">
                                         {{ formatDateTime(msg.timestamp) }}
-
-                                        <span v-if="msg.senderUsername === username" class="ms-1">
-                                            <!-- Messaggio Letto -->
+                                        <!-- Checkmarks dei messaggi -->
+                                        <<span v-if="msg.senderUsername === username" class="ms-1">
+                                            
                                             <span v-if="msg.statusInfo === 'read'" class="fw-bold" style="color: #4df0ff;" title="Read">✓✓</span>
-                                            <!-- Messaggio Consegnato -->
-                                            <span v-else class="fw-bold text-secondary" title="Delivered to server">✓</span>
+                                            
+                                            <span v-else-if="msg.statusInfo === 'delivered'" class="fw-bold text-secondary" title="Delivered">✓✓</span>
+                                            
+                                            <span v-else class="fw-bold text-secondary" title="Sent">✓</span>
 
                                         </span>
                                     </div>

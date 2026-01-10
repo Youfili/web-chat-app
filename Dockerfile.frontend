@@ -1,5 +1,5 @@
 ### BUILD (Node.js) ###
-FROM node:lts-alpine as frontend-build-stage
+FROM node:lts as build-stage
 
 # Imposto la cartella di lavoro
 WORKDIR /app
@@ -13,16 +13,16 @@ RUN npm install
 # Copiamo il codice sorgente del frontend
 COPY webui/ .
 
-# Compilo per la Produzione --> (crea la cartella /app/dist)
-RUN npx vite build --mode production
+# Compilo per la Produzione
+RUN npm run build
 
 # ---------------------------------------------------------------------------------------------
 
 ### PRODUCTION (Nginx) ###
-FROM nginx:stable-alpine as front-production-stage
+FROM nginx:stable-alpine as production-stage
 
-# Copio i file compilati dallo stage 1 alla cartella pubblica di Nginx
-COPY --from=frontend-build-stage /app/dist /usr/share/nginx/html
+# Copio i file compilati dallo stage 1 nella cartella di Nginx
+COPY --from=build-stage /app/dist /usr/share/nginx/html
 
 # Espongo la porta 80 (standard HTTP)
 EXPOSE 80

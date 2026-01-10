@@ -1,42 +1,28 @@
 ### BUILD (Compilazione) ### 
 
-# Uso un'immagine di Go come base --> Builder (Compilazione) --> Creo l'eseguibile webapi
-FROM golang:1.19-alpine AS backend-builder
+# Uso l'immagine Go standard (Debian based) (alpine mi dava problemi nella correzione)
+FROM golang:1.20
 
 # Imposto la cartella di lavoro dentro il container
 WORKDIR /app
 
-# Installo le dipendenze C per sqlite (mi dava errore nella correzione del prof)
-RUN apk add --no-cache gcc musl-dev
-
-# Copio i file delle dipendenze e le scarico 
+# Copio i file delle dipendenze
 COPY go.mod go.sum ./
+
+# Scarico le Dipendenze
 RUN go mod download
 
 # Copio tutto il codice sorgente del backend
 COPY . .
 
 # Compilo il progetto
-RUN go build -o main ./cmd/webapi
+RUN go build -o webapi ./cmd/webapi
 
-# ---------------------------------------------------------------------------------------------
-
-### RUN (Esecuzione) ###
-
-# Uso una versiona di linux leggera (alpine)
-FROM alpine:latest
-
-# Imposto la cartella di lavoro dentro il container
-WORKDIR /root/
-
-# Copio SOLO l'eseguibile dalla build precedente (buona pratica di sicurezza) --> "Multi-Stage Build"
-COPY --from=backend-builder /app/main .
-
-# Creo la struttura delle cartelle per le immagini per sicurezza
+# Creo le cartelle per le immagini 
 RUN mkdir -p images/media images/avatars
 
-# Espongo la porta su cui gira il server Go 
+# Espongo la porta
 EXPOSE 3000
 
-# Comando per avviare l'applicazione
-CMD ["./main"]
+# Avvio l'eseguibile
+CMD ["./webapi"]

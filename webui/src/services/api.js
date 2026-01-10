@@ -107,22 +107,50 @@ export default {
 		return response.data;
 	},
 
+
 	// Aggiorna info gruppo (Nome, Descrizione o Foto)
-	// Uso la logica dell'helper backend: passo solo il campo che mi interessa
-	async updateGroupInfo(username, conversationId, type, value) {
-		// type può essere: "name", "description", "photo"
-		let payload = {};
-		if (type === 'name') payload.groupName = value;
-		if (type === 'description') payload.groupDescription = value;
-		if (type === 'photo') payload.groupPhoto = value;
+	async setGroupName(username, conversationId, newName) {
+        const response = await axios.put(
+            `/wasatext/${username}/groups/${conversationId}/name`, 
+            { groupName: newName }
+        );
+        return response.data;
+    },
 
-		const response = await axios.put(
-			`/wasatext/${username}/groups/${conversationId}/${type}`, 
-			payload
-		);
-		return response.data;
-	},
+    async setGroupDescription(username, conversationId, newDesc) {
+        const response = await axios.put(
+            `/wasatext/${username}/groups/${conversationId}/description`, 
+            { groupDescription: newDesc }
+        );
+        return response.data;
+    },
 
+    async setGroupPhoto(username, conversationId, newPhotoUrl) {
+        const response = await axios.put(
+            `/wasatext/${username}/groups/${conversationId}/photo`, 
+            { groupPhoto: newPhotoUrl }
+        );
+        return response.data;
+    },
+
+
+	// Richiama internamente le funzioni specifiche qui sopra
+	// HO usato questa implementazione a causa dell'errore presentato dal professore in cui
+	// GLi endpoints nella OpenAPI Documentation vanno specificati in modo chiaro
+    async updateGroupInfo(username, conversationId, type, value) {
+        switch (type) {
+            case 'name':
+                return this.setGroupName(username, conversationId, value);
+            case 'description':
+                return this.setGroupDescription(username, conversationId, value);
+            case 'photo':
+                return this.setGroupPhoto(username, conversationId, value);
+            default:
+                console.error(`Update type '${type}' not recognized.`);
+                return null;
+        }
+    },
+	
 	async addToGroup(username, conversationId, userIdToAdd) {
 		const response = await axios.post(`/wasatext/${username}/groups/${conversationId}/members`, {
 			usersIdsToAdd: [userIdToAdd]

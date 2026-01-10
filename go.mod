@@ -2,7 +2,7 @@ module github.com/Youfili/web-chat-app
 
 // module github.com/Youfili/WASAtext
 
-go 1.19
+go 1.20
 
 require (
 	github.com/ardanlabs/conf v1.5.0
