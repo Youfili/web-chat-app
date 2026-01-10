@@ -87,6 +87,12 @@ export default {
 		return response.data;
 	},
 
+	// Ottiene una specifica chat privata tramite ID
+    async getPrivateChatById(username, conversationId) {
+        const response = await axios.get(`/wasatext/${username}/private_chats/${conversationId}`);
+        return response.data;
+    },
+	
 	// =================================================================
 	// GROUPS MANAGEMENT
 	// =================================================================
@@ -126,10 +132,6 @@ export default {
 
 	async removeFromGroup(username, conversationId, userIdToRemove) {
 		await axios.delete(`/wasatext/${username}/groups/${conversationId}/members/${userIdToRemove}`);
-	},
-
-	async leaveGroup(username, conversationId) {
-		await axios.post(`/wasatext/${username}/groups/${conversationId}/leave`);
 	},
 
 	// Promuove un utente ad Admin
