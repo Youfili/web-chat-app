@@ -1214,7 +1214,7 @@ export default {
                                     <div class="text-end lh-1" style="font-size: 0.7rem; opacity: 0.8;">
                                         {{ formatDateTime(msg.timestamp) }}
                                         <!-- Checkmarks dei messaggi -->
-                                        <<span v-if="msg.senderUsername === username" class="ms-1">
+                                        <span v-if="msg.senderUsername === username" class="ms-1">
                                             
                                             <span v-if="msg.statusInfo === 'read'" class="fw-bold" style="color: #4df0ff;" title="Read">✓✓</span>
                                             
