@@ -7,15 +7,11 @@ WORKDIR /app
 # Abilito Corepack perché uso Yarn 4.5.0
 RUN corepack enable
 
-# Copio "package.json" Dalla cartella webui --> perché il Dockerfile è nella root, ma il frontend è in webui/
-# Copio i file di configurazione
-COPY webui/package.json webui/yarn.lock ./
+# Copio Tutto il codice sorgente del frontend, prima di installare
+COPY webui/ .
 
 # Installo le dipendenze usando Yarn
 RUN yarn install
-
-# Copiamo il codice sorgente del frontend
-COPY webui/ .
 
 # Chiamo lo script "build-prod" che è quello che ho nel mio package.json
 RUN yarn run build-prod
