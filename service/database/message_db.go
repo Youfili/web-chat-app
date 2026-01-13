@@ -19,6 +19,7 @@ func createTableMessages(db *sql.DB) error {
 		reply_to TEXT,
 		created_at DATETIME NOT NULL,		
 		is_forwarded BOOLEAN DEFAULT 0,
+		status TEXT DEFAULT 'sent',
 		FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
 		FOREIGN KEY (sender_id) REFERENCES users(id)
 		FOREIGN KEY (reply_to) REFERENCES messages(id) ON DELETE SET NULL
@@ -45,7 +46,7 @@ func (db *appdbimpl) CreateMessage(msg Message) (Message, error) {
 	}
 
 	// Insert nel DB
-	_, err = tx.Exec(`INSERT INTO messages (id, conversation_id, sender_id, content, photo_url, reply_to, created_at, is_forwarded) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+	_, err = tx.Exec(`INSERT INTO messages (id, conversation_id, sender_id, content, photo_url, reply_to, created_at, is_forwarded, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		msg.ID, msg.ConversationID, msg.SenderUserID, msg.ContentMess, msg.MessagePhoto, msg.ReplyTo, msg.Timestamp, msg.Forwarded)
 	if err != nil {
 		return Message{}, err
@@ -61,8 +62,7 @@ func (db *appdbimpl) CreateMessage(msg Message) (Message, error) {
 		return Message{}, err
 	}
 
-	// Appena creato, il messaggio, è sicuramente delivered (e non 'read')
-	msg.StatusInfo = "delivered"
+	// Appena creato, il messaggio, è sicuramente "sent"
 	return msg, nil
 }
 
@@ -73,6 +73,17 @@ func (db *appdbimpl) GetMessages(username string, conversationID string, limit i
 	if err != nil {
 		return nil, err
 	}
+
+	// ---
+	// Aggiorno a 'delivered' i messaggi che sto scaricando (se non li ho inviati io e sono ancora 'sent')
+	_, _ = db.c.Exec(`
+        UPDATE messages 
+        SET status = 'delivered' 
+        WHERE conversation_id = ? 
+          AND sender_id != ? 
+          AND status = 'sent'
+    `, conversationID, user.ID)
+	// ---
 
 	// Recupero il timestamp dell'ultimo messaggio letto DALL'ALTRO utente (o dagli altri nel caso di una conversazione di gruppo)
 	var lastReadStr sql.NullString
@@ -115,7 +126,7 @@ func (db *appdbimpl) GetMessages(username string, conversationID string, limit i
 
 	// Recupero i Messaggi
 	query := `
-		SELECT m.id, m.content, m.photo_url, m.reply_to, m.created_at, m.is_forwarded, m.sender_id, u.username
+		SELECT m.id, m.content, m.photo_url, m.reply_to, m.created_at, m.is_forwarded, m.status, m.sender_id, u.username
         FROM messages m
         JOIN users u ON m.sender_id = u.id
         WHERE m.conversation_id = ? AND m.created_at < ?
@@ -134,8 +145,9 @@ func (db *appdbimpl) GetMessages(username string, conversationID string, limit i
 		var m Message
 		var photoUrl sql.NullString // Variabile temporanea per gestire il NULL della foto
 		var replyTo sql.NullString  // Variabile per gestire il NULL del "reply message"
+		var statusDb string         // Variabile per la gestione dello stato del messaggio
 
-		err := rows.Scan(&m.ID, &m.ContentMess, &photoUrl, &replyTo, &m.Timestamp, &m.Forwarded, &m.SenderUserID, &m.SenderUsername)
+		err := rows.Scan(&m.ID, &m.ContentMess, &photoUrl, &replyTo, &m.Timestamp, &m.Forwarded, &statusDb, &m.SenderUserID, &m.SenderUsername)
 		if err != nil {
 			defer func() { _ = rows.Close() }()
 			return nil, err
@@ -156,7 +168,7 @@ func (db *appdbimpl) GetMessages(username string, conversationID string, limit i
 		// ----------------------------------------------------------------
 
 		// Logica Assegnazione Stato
-		m.StatusInfo = "delivered" // Default
+		m.StatusInfo = statusDb // Prendo quello che c'è nel DB ('sent' o 'delivered')
 
 		// Se ho trovato e convertito validamente la data di lettura dell'altro...
 		if hasValidReadTime {
@@ -204,11 +216,15 @@ func (db *appdbimpl) GetMessageByID(messageID string) (Message, error) {
 
 	// Query con JOIN per avere anche lo username del mittente
 	query := `
-		SELECT m.id, m.conversation_id, m.sender_id, m.content, m.photo_url, m.reply_to, m.created_at, m.is_forwarded, u.username
+		SELECT m.id, m.conversation_id, m.sender_id, m.content, m.photo_url, m.reply_to, m.created_at, m.is_forwarded, m.status, u.username
         FROM messages m
         JOIN users u ON m.sender_id = u.id
         WHERE m.id = ?
 	`
+
+	var statusDb string
+
+	// Scan
 	err := db.c.QueryRow(query, messageID).Scan(
 		&m.ID,
 		&m.ConversationID,
@@ -218,6 +234,7 @@ func (db *appdbimpl) GetMessageByID(messageID string) (Message, error) {
 		&replyTo,  // Recupero il messaggio a cui "Risponde"
 		&m.Timestamp,
 		&m.Forwarded,
+		&statusDb,
 		&m.SenderUsername,
 	)
 
@@ -247,6 +264,9 @@ func (db *appdbimpl) GetMessageByID(messageID string) (Message, error) {
 		m.Reactions = reactions
 	}
 	// --------------------------------------
+
+	// Assegno lo stato
+	m.StatusInfo = statusDb
 
 	return m, nil
 }
