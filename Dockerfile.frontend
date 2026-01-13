@@ -1,27 +1,32 @@
 ### BUILD (Node.js) ###
-FROM node:lts as build-stage
+FROM node:20 AS build-stage
 
 # Imposto la cartella di lavoro
 WORKDIR /app
 
-# Copio "package.json" Dalla cartella webui --> perché il Dockerfile è nella root, ma il frontend è in webui/
-COPY webui/package*.json ./
+# Abilito Corepack perché uso Yarn 4.5.0
+RUN corepack enable
 
-# Installo le dipendenze
-RUN npm install
+# Copio "package.json" Dalla cartella webui --> perché il Dockerfile è nella root, ma il frontend è in webui/
+# Copio i file di configurazione
+COPY webui/package.json webui/yarn.lock ./
+
+# Installo le dipendenze usando Yarn
+RUN yarn install
 
 # Copiamo il codice sorgente del frontend
 COPY webui/ .
 
-# Compilo per la Produzione
-RUN npm run build
+# Chiamo lo script "build-prod" che è quello che ho nel mio package.json
+RUN yarn run build-prod
+
 
 # ---------------------------------------------------------------------------------------------
 
-### PRODUCTION (Nginx) ###
+### PRODUCTION (Nginx) -> Stage 2 ###
 FROM nginx:stable-alpine as production-stage
 
-# Copio i file compilati dallo stage 1 nella cartella di Nginx
+# Copio i file compilati dalla cartella dist
 COPY --from=build-stage /app/dist /usr/share/nginx/html
 
 # Espongo la porta 80 (standard HTTP)

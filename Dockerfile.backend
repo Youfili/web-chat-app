@@ -1,10 +1,13 @@
 ### BUILD (Compilazione) ### 
 
 # Uso l'immagine Go standard (Debian based) (alpine mi dava problemi nella correzione)
-FROM golang:1.20
+FROM golang:1.19
 
 # Imposto la cartella di lavoro dentro il container
 WORKDIR /app
+
+# Abilito CGO per far funzionare SQLite (go-sqlite3 richiede librerie C)
+ENV CGO_ENABLED=1
 
 # Copio i file delle dipendenze
 COPY go.mod go.sum ./
@@ -15,8 +18,11 @@ RUN go mod download
 # Copio tutto il codice sorgente del backend
 COPY . .
 
-# Compilo il progetto
+# COMPILO il progetto chiamandolo "webapi"
 RUN go build -o webapi ./cmd/webapi
+
+# Do i permessi di esecuzione --> Permessi di esecuzione espliciti (per evitare il "permission denied" correzione precedente)
+RUN chmod +x webapi
 
 # Creo le cartelle per le immagini 
 RUN mkdir -p images/media images/avatars

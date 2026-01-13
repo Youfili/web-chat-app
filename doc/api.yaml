@@ -343,6 +343,7 @@ components:
         statusInfo:
           type: string
           enum:
+            - sent
             - delivered
             - read
           description: Message status
