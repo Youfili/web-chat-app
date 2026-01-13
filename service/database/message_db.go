@@ -47,7 +47,7 @@ func (db *appdbimpl) CreateMessage(msg Message) (Message, error) {
 
 	// Insert nel DB
 	_, err = tx.Exec(`INSERT INTO messages (id, conversation_id, sender_id, content, photo_url, reply_to, created_at, is_forwarded, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		msg.ID, msg.ConversationID, msg.SenderUserID, msg.ContentMess, msg.MessagePhoto, msg.ReplyTo, msg.Timestamp, msg.Forwarded)
+		msg.ID, msg.ConversationID, msg.SenderUserID, msg.ContentMess, msg.MessagePhoto, msg.ReplyTo, msg.Timestamp, msg.Forwarded, "sent")
 	if err != nil {
 		return Message{}, err
 	}
