@@ -63,6 +63,7 @@ func (db *appdbimpl) CreateMessage(msg Message) (Message, error) {
 	}
 
 	// Appena creato, il messaggio, è sicuramente "sent"
+	msg.StatusInfo = "sent"
 	return msg, nil
 }
 
