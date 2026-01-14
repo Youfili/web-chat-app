@@ -118,6 +118,15 @@ func (rt *_router) setMyUserName(w http.ResponseWriter, r *http.Request, ps http
 		return
 	}
 
+	// Pulisco la stringa dagli spazi iniziali e finali
+	req.NewUsername = strings.TrimSpace(req.NewUsername)
+
+	// Se dopo il trim l'username è vuoto, blocco tutto
+	if req.NewUsername == "" {
+		http.Error(w, "Username cannot be empty or just spaces", http.StatusBadRequest)
+		return
+	}
+
 	// 3. Validazione
 	if !isValidUsername(req.NewUsername) {
 		http.Error(w, "Invalid username format", http.StatusBadRequest)

@@ -373,61 +373,12 @@ func (db *appdbimpl) CreateGroup(name string, desc string, photo string, creator
 	return Conversation{ID: groupID, ConversationType: "group", GroupName: &name}, nil
 }
 
-/*
-// DeletePrivateChatForUser "nasconde" la chat rimuovendo l'utente dai partecipanti.
-// SE però non rimangono più partecipanti (anche l'altro utente l'ha cancellata),
-// allora elimina definitivamente la conversazione e tutti i messaggi dal DB.
-func (db *appdbimpl) DeletePrivateChatForUser(conversationID string, userID string) error {
-	// 1. Apro una transazione (fondamentale per garantire coerenza)
-	tx, err := db.c.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	// 2. Rimuovo l'utente corrente dalla lista dei partecipanti
-	res, err := tx.Exec(`DELETE FROM participants WHERE conversation_id = ? AND user_id = ?`, conversationID, userID)
-	if err != nil {
-		return err
-	}
-
-	// Controllo se ho effettivamente cancellato qualcosa
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		// La chat non esiste o l'utente non ne faceva parte
-		return ErrChatNotFound
-	}
-
-	// Controllo quanti partecipanti sono rimasti in questa chat
-	var remainingParticipants int
-	err = tx.QueryRow(`SELECT COUNT(*) FROM participants WHERE conversation_id = ?`, conversationID).Scan(&remainingParticipants)
-	if err != nil {
-		return err
-	}
-
-	// Se non c'è più nessuno (count == 0), significa che anche l'altro utente aveva già cancellato la chat. Posso pulire il DB.
-	if remainingParticipants == 0 {
-		// Elimino la conversazione.
-		// ON DELETE CASCADE cancellerà automaticamente anche le righe nella tabella 'messages' e 'reactions'.
-		_, err = tx.Exec(`DELETE FROM conversations WHERE id = ?`, conversationID)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Confermo le modifiche
-	return tx.Commit()
-}
-*/
-
 // AddGroupMember aggiunge un utente a un gruppo esistente.
 func (db *appdbimpl) AddGroupMember(groupID string, userIDToAdd string) error {
 	// Nota: L'handler deve aver già verificato che chi fa la richiesta sia Admin.
 	// Qui mi limito a inserire la riga.
-	_, err := db.c.Exec(`INSERT INTO participants (conversation_id, user_id, is_admin) VALUES (?, ?, 0)`, groupID, userIDToAdd)
+	// Uso 'INSERT OR IGNORE' --> se l'utente c'è già (idempotente)
+	_, err := db.c.Exec(`INSERT OR IGNORE INTO participants (conversation_id, user_id, is_admin) VALUES (?, ?, 0)`, groupID, userIDToAdd)
 	if err != nil {
 		// Gestisco il caso in cui l'utente è già nel gruppo
 		return err

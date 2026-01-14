@@ -86,43 +86,51 @@ func (db *appdbimpl) GetMessages(username string, conversationID string, limit i
     `, conversationID, user.ID)
 	// ---
 
-	// Recupero il timestamp dell'ultimo messaggio letto DALL'ALTRO utente (o dagli altri nel caso di una conversazione di gruppo)
-	var lastReadStr sql.NullString
+	// Logica per Spunte Blu di Gruppo
 
-	// Questa query trova il timestamp del messaggio letto più "vecchio" tra gli altri partecipanti.
+	// Conto quanti sono gli ALTRI partecipanti (escluso io)	--> Conto TUTTI i membri (escluso me)
+	var totalOtherMembers int
+	errCount := db.c.QueryRow(`
+        SELECT COUNT(*) 
+        FROM participants 
+        WHERE conversation_id = ? AND user_id != ?
+    `, conversationID, user.ID).Scan(&totalOtherMembers)
+
+	if errCount != nil {
+		return nil, errCount
+	}
+
+	// Cerco il MINIMO tempo di lettura e CONTO quanti utenti hanno una lettura valida
+	// La JOIN esclude automaticamente chi ha last_read_message_id = NULL (es. un utente appena entrato)
+	var minReadTimeStr sql.NullString
+	var membersWhoHaveReadCount int
+
 	timeQuery := `
-		SELECT MAX(m.created_at)
+        SELECT MIN(m.created_at), COUNT(p.user_id)
         FROM participants p
         JOIN messages m ON p.last_read_message_id = m.id
         WHERE p.conversation_id = ? AND p.user_id != ?
-	`
+    `
+	_ = db.c.QueryRow(timeQuery, conversationID, user.ID).Scan(&minReadTimeStr, &membersWhoHaveReadCount)
 
-	// Eseguo la query scansionando in una STRINGA
-	errQuery := db.c.QueryRow(timeQuery, conversationID, user.ID).Scan(&lastReadStr)
+	// Valuto se TUTTI hanno letto
+	// - totalOtherMembers > 0: La chat non è vuota
+	// - totalOtherMembers == membersWhoHaveReadCount: Nessuno ha NULL (tutti hanno letto qualcosa)
+	// - minReadTimeStr.Valid: Ho una data valida
 
-	// Variabile dove salverò la data convertita
-	var otherLastReadTime time.Time
-	var hasValidReadTime bool // di default è false
+	var groupReadTime time.Time
+	var everyoneHasReadAtLeastSomething bool = false
 
-	if errQuery != nil {
-		// Se c'è un errore SQL
-	} else if lastReadStr.Valid {
-		// Ho trovato una Data --> Devo convertirla in time.Time.
-		// Faccio un Parsing
-
-		// Layout standard che usa Go nel DB
+	if totalOtherMembers > 0 && totalOtherMembers == membersWhoHaveReadCount && minReadTimeStr.Valid {
+		// Parsing della data
 		layout := "2006-01-02 15:04:05.999999999-07:00"
-		t, errParse := time.Parse(layout, lastReadStr.String)
-
+		t, errParse := time.Parse(layout, minReadTimeStr.String)
 		if errParse != nil {
-			// Fallback
-			t, errParse = time.Parse("2006-01-02 15:04:05", lastReadStr.String)
+			t, _ = time.Parse("2006-01-02 15:04:05", minReadTimeStr.String) // Fallback
 		}
 
-		if errParse == nil {
-			otherLastReadTime = t
-			hasValidReadTime = true
-		}
+		groupReadTime = t
+		everyoneHasReadAtLeastSomething = true
 	}
 
 	// Recupero i Messaggi
@@ -171,14 +179,14 @@ func (db *appdbimpl) GetMessages(username string, conversationID string, limit i
 		// Logica Assegnazione Stato
 		m.StatusInfo = statusDb // Prendo quello che c'è nel DB ('sent' o 'delivered')
 
-		// Se ho trovato e convertito validamente la data di lettura dell'altro...
-		if hasValidReadTime {
-			// --> confronto le date
-			if !m.Timestamp.After(otherLastReadTime) {
+		// Sovrascrivo con 'read' SOLO SE:
+		// 1° --> So che TUTTI i partecipanti hanno una ricevuta di lettura valida (nessuno è NULL)
+		// 2° --> Il messaggio è più vecchio (o uguale) al momento in cui il "più lento" del gruppo ha letto.
+		if everyoneHasReadAtLeastSomething {
+			if !m.Timestamp.After(groupReadTime) {
 				m.StatusInfo = "read"
 			}
 		}
-
 		msgs = append(msgs, m)
 	}
 	if err := rows.Err(); err != nil {

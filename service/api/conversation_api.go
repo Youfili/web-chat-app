@@ -151,26 +151,6 @@ func (rt *_router) getPrivateChatById(w http.ResponseWriter, r *http.Request, ps
 	_ = json.NewEncoder(w).Encode(chat)
 }
 
-/*
-func (rt *_router) deletePrivateChat(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	if !rt.checkAuth(w, r, ps.ByName("username")) {
-		return
-	}
-	user, _ := rt.db.GetUserByUsername(ps.ByName("username"))
-
-	err := rt.db.DeletePrivateChatForUser(ps.ByName("conversationId"), user.ID)
-	if err != nil {
-		if errors.Is(err, database.ErrChatNotFound) {
-			http.Error(w, "Conversation not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-*/
-
 // ---------------------------------------------------------
 // GRUPPI
 // ---------------------------------------------------------
