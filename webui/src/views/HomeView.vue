@@ -117,9 +117,15 @@ export default {
         // Funzione per ricavare il nome della chat (a seconda se è un chat di gruppo o privata)
         getChatName(chat) {
             if (chat.conversationType === 'group') {
-                return chat.groupName
+                // Se il gruppo ha un nome viene ritornato
+                if (chat.groupName && chat.groupName.trim() !== "") {
+                    return chat.groupName;
+                }
+                // Se non ha nome, mostro "Group Chat" 
+                return "Group Chat";
             } else {
-                return chat.recipientUsername
+                // Chat privata: restituisco il nome dell'altro utente coinvolto nella chat.
+                return chat.recipientUsername || "Unknown User";
             }
         },
 
