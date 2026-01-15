@@ -119,7 +119,7 @@ func (db *appdbimpl) GetMessages(username string, conversationID string, limit i
 	// - minReadTimeStr.Valid: Ho una data valida
 
 	var groupReadTime time.Time
-	var everyoneHasReadAtLeastSomething bool = false
+	var everyoneHasReadAtLeastSomething bool
 
 	if totalOtherMembers > 0 && totalOtherMembers == membersWhoHaveReadCount && minReadTimeStr.Valid {
 		// Parsing della data
