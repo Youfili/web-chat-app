@@ -39,7 +39,28 @@ func createTableParticipants(db *sql.DB) error {
 
 // GetConversations: Logica ibrida
 func (db *appdbimpl) GetConversations(userID string) ([]Conversation, error) {
-	// FASE 1: Scarico TUTTE le conversazioni base in memoria
+
+	// Aggiornamento Stato Delivered Globale
+	// Appena l'utente richiede la lista delle chat, significa che il suo dispositivo ha "ricevuto" i messaggi. --> Li segno tutti come 'delivered'.
+	// Aggiorno solo i messaggi 'sent' che NON ho mandato io, nelle chat in cui sono partecipe.
+
+	updateQuery := `
+        UPDATE messages 
+        SET status = 'delivered' 
+        WHERE status = 'sent' 
+          AND sender_id != ? 
+          AND conversation_id IN (
+              SELECT conversation_id FROM participants WHERE user_id = ?
+          )
+    `
+	// Eseguo l'update
+	_, err := db.c.Exec(updateQuery, userID, userID)
+	if err != nil {
+		// Se c'è un errore nel DB, fermo tutto e lo ritorno.
+		return nil, err
+	}
+
+	// FASE 1: Recupero la liste delle conversazioni
 	// Chiuderò la connessione PRIMA di fare le query di dettaglio.
 	query := `
         SELECT c.id, c.type, c.group_name, c.group_photo, c.group_description, c.last_message_at, p.last_read_message_id
