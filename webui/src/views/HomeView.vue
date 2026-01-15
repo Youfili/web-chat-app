@@ -630,6 +630,26 @@ export default {
             try {
                 const response = await api.getConversations(this.username)
                 this.conversations = (response.conversations || []).filter(c => c) // Aggiungo .filter(c => c) per rimuovere i null
+
+                // Controllo Rimozione da una chat di gruppo --> Aggiornamento
+                // Se ho una chat aperta...
+                if (this.selectedChatId) {
+                    // controllo se esiste ancora nella lista appena scaricata
+                    const chatStillExists = this.conversations.some(c => c.id === this.selectedChatId)
+
+                    // Se NON esiste più (sono stato rimosso o il gruppo è stato cancellato)
+                    if (!chatStillExists) {
+                        // Chiudo la schermata chat resettando le variabili
+                        this.selectedChatId = null
+                        this.messages = []
+                        this.groupInfo = null
+                        this.currentChatAdmins = []
+                        
+                        // Mostro un avviso all'utente 
+                        // alert("You are no longer part of this chat.") 
+                    }
+                }
+
             } catch (e) {
                 console.error("Polling conversations error", e)
             }
