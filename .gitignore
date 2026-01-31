@@ -35,5 +35,3 @@ images/media/*
 # TRANNE il file .gitkeep
 !images/media/.gitkeep
 
-# Ignoro docker-compose (uso locale almeno fino alla correzione dell'esame)
-docker-compose.yml

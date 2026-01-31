@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  # Servizio Backend (Go)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+    volumes:
+      # Nota: il codice cerca le immagini in "/app/images", NON in "/root/images".
+      # Mappo la cartella locale ./images dentro /app/images del container.
+      - ./images:/app/images
+    networks:
+      - web-app-network
+
+  # Servizio Frontend (Vue + Nginx)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - web-app-network
+
+# Rete condivisa
+networks:
+  web-app-network:
+    driver: bridge
